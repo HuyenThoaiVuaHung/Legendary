@@ -1,20 +1,51 @@
 const fs = require('fs')
-const io = require('socket.io')(3000)
+const io = require('socket.io')(3000, {
+  cors: {
+    origin: ['http://localhost:4200']
+  }
+})
 
 var player=[]
 
 io.on('connection', socket => {
   console.log(socket.id);
-  socket.broadcast.emit(socket.id,"Connected"); //?
+  socket.on('send-message', message => {
+    console.log(message);
+  });
+  socket.on('init-authenticate', (authId, callback) => {
+    console.log(authId);
+    if (fs.existsSync(`./users_data/${authId}.json`)) {
+      console.log('dfajsiodjfioasdhjfioh');
+      var player = JSON.parse(fs.readFileSync(`./users_data/${authId}.json`));
+      callback({
+        ifValid: true,
+        playerInfo: player
+      })
+    }
+    else if(authId="BTC"){
+      callback({
+        ifValid:true
+      })
+    }
+    else {
+      callback({
+        ifValid: false
+      })
+    }
+  })
 })
 
-io.on('connect',{})
+/*
+
+io.on('send-message', message => {
+  console.log(message);
+})
 io.on('init-authenticate', (authID,callback) =>{
-  if(fs.existsSync(`users_data/${authID}.json`)){
-    var player=JSON.parse(`users_data/${authID}.json`);
+  if(fs.existsSync(`/users_data/${authID}.json`)){
+    var player = JSON.parse(`/users_data/${authID}.json`);
     callback({
       ifValid:true,
-      playerInfo:player
+      playerInfo: player
 
     }) 
   }else if(authID="BTC"){
@@ -22,5 +53,4 @@ io.on('init-authenticate', (authID,callback) =>{
       ifValid:true
     })
   }
-})
-
+*/
