@@ -15,14 +15,14 @@ io.on('connection', socket => {
   socket.on('init-authenticate', (authId, callback) => {
     console.log(authId);
     if (fs.existsSync(`./users_data/${authId}.json`)) {
-      console.log('dfajsiodjfioasdhjfioh');
       var player = JSON.parse(fs.readFileSync(`./users_data/${authId}.json`));
       callback({
         ifValid: true,
         playerInfo: player
       })
     }
-    else if(authId="BTC"){
+    else if(authId == "BTC"){
+      console.log("BTC đã đăng nhập");
       callback({
         ifValid:true
       })
@@ -32,7 +32,7 @@ io.on('connection', socket => {
         ifValid: false
       })
     }
-  })
+  });
 })
 
 /*
