@@ -2,7 +2,7 @@ const fs = require('fs');
 const { connect } = require('http2');
 const io = require('socket.io')(3000)
 
-var connectedPlayers=[];
+var connectedPlayers={};
 var adminID="";
 
 io.on('connection', socket => {
@@ -14,7 +14,7 @@ io.on('connection', socket => {
         ifValid:true,
         playerInfo:player
       })
-      connectedPlayers.push(authID);
+      connectedPlayers[socket.id]=authID;
       socket.to(adminID).emit('update-connected-players', connectedPlayers);
     }else if(authID=="BTC"){
       adminID=socket.id;
@@ -23,6 +23,9 @@ io.on('connection', socket => {
         _connectedPlayers:connectedPlayers
       })
     }
+  })
+  socket.on('disconnect', ()=>{
+      delete connectedPlayers[socket.id];
   })
 
 })
