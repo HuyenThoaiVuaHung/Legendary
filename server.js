@@ -11,7 +11,6 @@ var socketIDs = [];
 var adminID="";
 var playerCount = 0;
 io.on('connection', socket => {
-  console.log(socket.id);
   socket.on('init-authenticate', (authID,callback) =>{
     if(fs.existsSync(`users_data/${authID}.json`)){
       var player=JSON.parse(fs.readFileSync(`users_data/${authID}.json`));
@@ -21,7 +20,6 @@ io.on('connection', socket => {
       })
       connectedPlayers.push(player);
       socketIDs.push(socket.id);
-      console.log(connectedPlayers);
       console.log(socketIDs);
      // console.log('Số người chơi: ', playerCount)
      // console.log("Người chơi số " + playerCount + " là " + player.name);
@@ -44,6 +42,6 @@ io.on('connection', socket => {
   socket.on('beginMatch', () => {
     console.log('Bắt đầu phần khởi động');
     socket.broadcast.emit('beginMatch');
-  })
+  });
 })
 
