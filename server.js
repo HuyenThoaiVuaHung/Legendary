@@ -70,5 +70,18 @@ io.on('connection', socket => {
       message:'200 OK'
     });
   })
+  socket.on('begin-kd-turn', (authID, callback)=>{
+    var timeleft=60;
+    var timer=setInterval(()=>{
+      if (timeleft <= 0){
+        clearInterval(timer);
+      }
+      socket.broadcast.emit('update-kd-time', timeleft);
+      timeleft-=1;
+    },1000)
+    callback({
+      message:'200 OK'
+    })
+  })
 })
 
