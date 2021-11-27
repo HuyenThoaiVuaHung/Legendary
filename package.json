@@ -9,6 +9,8 @@
   "author": "jang",
   "license": "ISC",
   "dependencies": {
+    "crypto-js": "^4.1.1",
+    "cryptojs": "^2.5.3",
     "server": "^1.0.36",
     "socket.io": "^4.4.0"
   },

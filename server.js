@@ -1,3 +1,4 @@
+const cryptoJS = require('crypto-js');
 const fs = require('fs');
 const { connect } = require('http2');
 const io = require('socket.io')(3000, {
@@ -43,5 +44,31 @@ io.on('connection', socket => {
     console.log('Bắt đầu phần khởi động');
     socket.broadcast.emit('beginMatch');
   });
+
+  socket.on('get-kd-questions', (questionsPassword, callback)=>{
+    var kd_questions=JSON.parse(cryptoJS.AES.decrypt(fs.readFileSync(`question_data/kd_questions.json`), questionsPassword ));
+    callback({
+      kd_questions:kd_questions
+    })
+  })
+  socket.on('update-question',(type, payload, password, callback)=>{
+    switch (type){
+      case 'kd':
+        fs.writeFileSync(`question_data/kd_questions.json`, cryptoJS.AES.encrypt(JSON.stringify(payload), password));
+        break;
+      default:
+        console.warn('Chưa thêm tính năng này :)');
+    }
+    callback({
+      message:"200 OK"
+    })
+  })
+
+  socket.on('broadcast-kd-question', (question, callback)=>{
+    socket.broadcast.emit('update-kd-question', question);
+    callback({
+      message:'200 OK'
+    });
+  })
 })
 
