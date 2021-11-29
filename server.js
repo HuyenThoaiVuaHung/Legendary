@@ -83,5 +83,14 @@ io.on('connection', socket => {
       message:'200 OK'
     })
   })
+  socket.on('update-player-score',(score, authID, callback )=>{
+    var player = JSON.parse(fs.readFileSync(`users_data/${authID}.json`));
+    var playerScore = player.score;
+    playerScore += score; 
+    callback({
+      playerScore : playerScore,
+      // message:'200 OK'
+    });
+  })
 })
 
