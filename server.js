@@ -1,6 +1,5 @@
 const cryptoJS = require('crypto-js');
 const fs = require('fs');
-const { connect } = require('http2');
 const io = require('socket.io')(3000, {
   cors: {
     origin: 'http://localhost:4200',
@@ -10,7 +9,6 @@ const io = require('socket.io')(3000, {
 var connectedPlayers = [];
 var socketIDs = [];
 var adminID="";
-var playerCount = 0;
 io.on('connection', socket => {
   socket.on('init-authenticate', (authID,callback) =>{
     if(fs.existsSync(`users_data/${authID}.json`)){
@@ -45,32 +43,34 @@ io.on('connection', socket => {
     socket.broadcast.emit('beginMatch');
   });
 
-  socket.on('get-kd-questions', (questionsPassword, callback)=>{
-    var kd_questions=JSON.parse(cryptoJS.AES.decrypt(fs.readFileSync(`question_data/kd_questions.json`), questionsPassword ));
-    callback({
-      kd_questions:kd_questions
-    })
+  socket.on('get-kd-questions',(callback)=>{
+    callback(JSON.parse(fs.readFileSync(`question_data/kd_questions.json`)));
+    // Will implement encryption later
+    //var kd_questions=JSON.parse(cryptoJS.AES.decrypt(fs.readFileSync(`question_data/kd_questions.json`), questionsPassword ));
   })
   socket.on('update-question',(type, payload, password, callback)=>{
     switch (type){
       case 'kd':
-        fs.writeFileSync(`question_data/kd_questions.json`, cryptoJS.AES.encrypt(JSON.stringify(payload), password));
+        // Will implement encryption later
+        //fs.writeFileSync(`question_data/kd_questions.json`, cryptoJS.AES.encrypt(JSON.stringify(payload), password));
+        fs.writeFileSync(`question_data/kd_questions.json`, JSON.stringify(payload));
+        callback({
+          message:"200 OK"
+        });
         break;
       default:
         console.warn('Chưa thêm tính năng này :)');
     }
-    callback({
-      message:"200 OK"
-    })
+
   })
 
   socket.on('broadcast-kd-question', (question, callback)=>{
-    socket.broadcast.emit('update-kd-question', question);
+    socket.broadcast.emit('update-displayed-kd-question', question);
     callback({
       message:'200 OK'
     });
   })
-  socket.on('begin-kd-turn', (authID, callback)=>{
+  socket.on('begin-kd-clock', (authID, callback)=>{
     var timeleft=60;
     var timer=setInterval(()=>{
       if (timeleft <= 0){
@@ -87,9 +87,10 @@ io.on('connection', socket => {
     var player = JSON.parse(fs.readFileSync(`users_data/${authID}.json`));
     var playerScore = player.score;
     playerScore += score; 
+    fs.writeFileSync(`users_data/${authID}.json`, JSON.stringify(player));
     callback({
       playerScore : playerScore,
-      // message:'200 OK'
+      message:'200 OK'
     });
   })
 })
