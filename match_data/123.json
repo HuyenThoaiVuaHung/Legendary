@@ -1,0 +1,13 @@
+{
+    "socketID":"",
+    "matchName":"",
+    "matchPos":"",
+    "players":[
+        "123":{
+            "id":1,
+            "name":"Nguyen Van A",
+            "score":0
+        }
+    ],
+    "KDQuestionsFilePath":""
+}
