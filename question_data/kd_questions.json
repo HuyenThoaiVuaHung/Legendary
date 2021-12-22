@@ -1,20 +1,25 @@
 [
     {
       "id": 34124,
-      "question": "Lorem Ipsum",
+      "question": "Bài hát gì đây",
+      "ifSong": true,
+      "path": "/assets/sounds/questions/34124.jpg",
       "answer": "goes round and round"
     },
         {
       "id": 41234,
       "question": "Lorem Ipsum",
+      "ifSong": false,
       "answer": "goes round and round"
     },    {
       "id": 42355,
       "question": "Lorem Ipsum",
+      "ifSong": false,
       "answer": "goes round and round"
     },    {
       "id": 67453,
       "question": "Lorem Ipsum",
+      "ifSong": false,
       "answer": "goes round and round"
     }
 ]
