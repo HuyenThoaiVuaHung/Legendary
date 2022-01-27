@@ -1,13 +1,1 @@
-{
-    "socketID":"",
-    "matchName":"",
-    "matchPos":"",
-    "players":[
-        "123":{
-            "id":1,
-            "name":"Nguyen Van A",
-            "score":0
-        }
-    ],
-    "KDQuestionsFilePath":""
-}
+{"socketID":"obk1htvh04","matchName":"HUYỀN THOẠI VUA HÙNG IV - CHUNG KẾT","matchPos":"KD","players":[{"id":1,"name":"Nguyen Van A","score":20,"isReady":true},{"id":2,"name":"Nguyen Van B","score":0,"isReady":true},{"id":3,"name":"Nguyen Van C","score":0,"isReady":false},{"id":4,"name":"Nguyen Van D","score":0,"isReady":false}],"KDFilePath":"match_data/round_data/kd_1.json","pauseTime":0}

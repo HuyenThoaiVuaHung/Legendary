@@ -1,0 +1,67 @@
+{
+    "questions": [
+        {
+            "question": "Nhật Huy năm nay bao nhiêu tuổi?",
+            "answer": "18",
+            "type": "N"
+        },
+        {
+            "question": "Đây là bài hát gì?",
+            "answer": "Love Supreme! (Ai no Supreme)",
+            "type": "A",
+            "audioFilePath": "1.mp3"
+        },
+        {
+            "question": "Đây là album của bộ phim nào?",
+            "answer": "Yuru Camp",
+            "type": "P",
+            "audioFilePath": "1.png"
+        },
+        {
+            "question": "a",
+            "answer": "b",
+            "type": "N",
+            "audioFilePath": "d"
+        },
+        {
+            "question": "a",
+            "answer": "b",
+            "type": "N"
+        },
+        {
+            "question": "a",
+            "answer": "b",
+            "type": "N"
+        },
+        {
+            "question": "a",
+            "answer": "b",
+            "type": "N"
+        },
+        {
+            "question": "a",
+            "answer": "b",
+            "type": "N",
+            "audioFilePath": "c"
+        },
+        {
+            "question": "a",
+            "answer": "b",
+            "type": "N"
+        },
+        {
+            "question": "a",
+            "answer": "b",
+            "type": "N"
+        },
+        {
+            "question": "a",
+            "answer": "b",
+            "type": "N"
+        }
+    ],
+    "currentQuestionId": 1,
+    "currentRelativeQuestion": 2,
+    "currentAccurateQuestion": 1,
+    "currentTime": 0
+}
