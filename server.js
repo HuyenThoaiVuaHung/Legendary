@@ -222,6 +222,7 @@ io.on('connection', socket => {
   });
   socket.on('stop-3s-timer-kd', () => {
     if3SecActive = false;
-  })  
+  })
 })
 
+#this line do not thing I'm testing atom-editor :D 
