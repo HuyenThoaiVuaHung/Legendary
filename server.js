@@ -1,3 +1,4 @@
+const { timeStamp } = require('console');
 const cryptoJS = require('crypto-js');
 const fs = require('fs');
 const io = require('socket.io')(3000, {
@@ -15,7 +16,6 @@ var playerSecrets = [
 var adminSecret = "BTC";
 // Nhập đường dẫn tới file data trận đấu
 var matchDataPath = "match_data/123.json";
-
 
 
 
@@ -42,7 +42,15 @@ function doTimer(time){
     }
   }, 1000)
 }
-
+function sortByTimestamp(a, b){
+  if (a.timestamp < b.timestamp){
+    return -1;
+  }
+  if (a.timestamp > b.timestamp){
+    return 1;
+  }
+  return 0;
+}
 io.on('connection', socket => {
   socket.on('init-authenticate', (authID,callback) =>{
     if(playerSecrets.includes(authID)){
@@ -51,11 +59,12 @@ io.on('connection', socket => {
       socketIDs[playerSecrets.indexOf(authID)] = socket.id;
       fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
       console.log("Player " + authID + " connected at " + socket.id);
-      socket.to(adminId).emit('update-match-data', matchData);
+      io.to(adminId).emit('update-match-data', matchData);
       callback({
         roleId: 0,
         matchData: matchData,
-        player: matchData.players[playerSecrets.indexOf(authID)]
+        player: matchData.players[playerSecrets.indexOf(authID)],
+        playerIndex: playerSecrets.indexOf(authID),
       });
     }
     else if (authID == adminSecret){
@@ -77,7 +86,7 @@ io.on('connection', socket => {
       console.log('Disconnect at ' + socket.id);
       matchData.players[socketIDs.indexOf(socket.id)].isReady = false;
       fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
-      socket.to(adminId).emit('update-match-data', matchData);
+      io.emit('update-match-data', matchData);
     }
   })
   socket.on('beginMatch', () => {
@@ -86,6 +95,15 @@ io.on('connection', socket => {
     fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
     socket.broadcast.emit('beginMatch');
   });
+  socket.on('change-match-position', (matchPos) => {
+    if(socket.id == adminId){
+      console.log('Changed match position at socket: ' + socket.id)
+      matchData.matchPos = matchPos;
+      fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
+      io.emit('update-match-data', matchData);
+    }
+
+  })
   socket.on('start-clock', (time) => {
     timerActive = false;
     setTimeout(() => {}, 1000);
@@ -134,7 +152,7 @@ io.on('connection', socket => {
     if(adminId == socket.id){
       matchData.players[payload.index] = payload.player;
       fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
-      socket.emit('update-match-data', matchData);
+      io.emit('update-match-data', matchData);
       callback({
         message: "Success"
       });
@@ -164,7 +182,7 @@ io.on('connection', socket => {
   socket.on('get-turn-kd', () => {
     io.emit('disable-answer-button-kd');
     lastTurnId = socket.id;
-    socket.to(adminId).emit('player-got-turn-kd', matchData.players[socketIDs.indexOf(socket.id)]);
+    io.to(adminId).emit('player-got-turn-kd', matchData.players[socketIDs.indexOf(socket.id)]);
   })
   let ifLastAnswerCorrect = false;
   socket.on('correct-mark-kd', () => {
@@ -172,14 +190,14 @@ io.on('connection', socket => {
     io.emit('enable-answer-button-kd');
     matchData.players[socketIDs.indexOf(lastTurnId)].score += 10;
     fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
-    socket.to(adminId).emit('update-match-data', matchData);
-    socket.to(lastTurnId).emit('update-player-score', matchData.players[socketIDs.indexOf(lastTurnId)].score);
+    io.to(adminId).emit('update-match-data', matchData);
+    io.to(lastTurnId).emit('update-player-score', matchData.players[socketIDs.indexOf(lastTurnId)].score);
   })
   socket.on('wrong-mark-kd', (ifPlayer) => {
     ifLastAnswerCorrect = false;
     io.emit('enable-answer-button-kd');
     if(ifPlayer == true){
-      socket.to(lastTurnId).emit('disable-answer-button-kd');
+      io.to(lastTurnId).emit('disable-answer-button-kd');
     }
   })
   let counter = 3;
@@ -217,11 +235,151 @@ io.on('connection', socket => {
       counter = 3;
       io.emit('update-3s-timer-kd', counter);
     }
-
-
   });
   socket.on('stop-3s-timer-kd', () => {
     if3SecActive = false;
   })  
+  socket.on('get-vcnv-data', (callback) => {
+    callback(JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath)));
+  })
+  socket.on('mark-answer-vcnv', (payload) => {
+    for (let i = 0; i <= payload.length; i++){
+      if (payload[i] == true){
+        matchData.players[i].score += 10;
+      }
+      io.emit('update-match-data', matchData);
+    }
+  })
+  socket.on('update-vcnv-data', (payload) => {
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath, JSON.stringify(payload));
+    socket.broadcast.emit('update-vcnv-data', payload);
+  })
+  socket.on('broadcast-vcnv-question', (questionId)=>{
+    socket.broadcast.emit('update-vcnv-question', JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath)).questions[questionId - 1]);
+  })
+  socket.on('highlight-vcnv-question', (questionId)=>{
+    io.emit('update-highlighted-vcnv-question', questionId);
+  })
+  socket.on('submit-answer-vcnv', (answer) => {
+    let vcnvData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath));
+    vcnvData.playerAnswers[socketIDs.indexOf(socket.id)].answer = answer;
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath, JSON.stringify(vcnvData));
+    io.emit('update-vcnv-data', vcnvData);
+  })
+  socket.on('open-hn-vcnv', (id)=> {
+    let vcnvData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath));
+    vcnvData.questions[id - 1].ifOpen = true;
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath, JSON.stringify(vcnvData));
+    let openedHN = 0;
+    for (let i = 0; i < vcnvData.questions.length; i++){
+      if (vcnvData.questions[i].ifOpen == true){
+        openedHN++;
+      }
+    }
+    switch (openedHN){
+      case 0: vcnvData.questions[5].value = 80;
+      break;
+      case 1: vcnvData.questions[5].value = 80;
+      break;
+      case 2: vcnvData.questions[5].value = 60;
+      break;
+      case 3: vcnvData.questions[5].value = 40;
+      break;
+      case 4: vcnvData.questions[5].value = 20;
+      break;
+      case 5: vcnvData.questions[5].value = 10;
+      break;
+    }
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath, JSON.stringify(vcnvData));
+    io.emit('update-vcnv-data', vcnvData);
+  })
+  socket.on('close-hn-vcnv', (id)=> {
+    let vcnvData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath));
+    vcnvData.questions[id - 1].ifOpen = false;
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath, JSON.stringify(vcnvData));
+    let openedHN = 0;
+    for (let i = 0; i < vcnvData.questions.length; i++){
+      if (vcnvData.questions[i].ifOpen == true){
+        openedHN++;
+      }
+    }
+    switch (openedHN){
+      case 0: vcnvData.questions[5].value = 80;
+      break;
+      case 1: vcnvData.questions[5].value = 80;
+      break;
+      case 2: vcnvData.questions[5].value = 60;
+      break;
+      case 3: vcnvData.questions[5].value = 40;
+      break;
+      case 4: vcnvData.questions[5].value = 20;
+      break;
+      case 5: vcnvData.questions[5].value = 10;
+      break;
+    }
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath, JSON.stringify(vcnvData));
+    io.emit('update-vcnv-data', vcnvData);
+  })
+  socket.on('clear-player-answer', () => {
+    //read vcnvFile
+    let vcnvData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath));
+    vcnvData.playerAnswers[socketIDs.indexOf(socket.id)].answer = '';
+    vcnvData.playerAnswers[socketIDs.indexOf(socket.id)].correct = false;
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath, JSON.stringify(vcnvData));
+    io.emit('update-vcnv-data', vcnvData);
+  });
+  socket.on('submit-mark-vcnv-admin', (payload) => {
+    let vcnvData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath));
+    vcnvData.playerAnswers = payload;
+    for (let i = 0; i < 3; i++){
+      if (payload[i].correct == true){
+        matchData.players[i].score += 10;
+      }
+    }
+    io.emit('update-match-data', matchData);
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath, JSON.stringify(vcnvData));
+    fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
+  })
+  socket.on('toggle-results-display-vcnv', () => {
+    let vcnvData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath));
+    vcnvData.showResults = !vcnvData.showResults;
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath, JSON.stringify(vcnvData));
+    io.emit('update-vcnv-data', vcnvData);
+  })
+  socket.on('attempt-cnv-player', (timestamp) =>{
+    let vcnvData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath));
+    let time = new Date(timestamp);
+    vcnvData.CNVPlayers.push({
+      id: socketIDs.indexOf(socket.id),
+      timestamp: timestamp,
+      readableTime: time.getHours() + ':' + time.getMinutes() + ':' + time.getSeconds() + '.' + time.getMilliseconds()
+    })
+    vcnvData.CNVPlayers.sort(sortByTimestamp);
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath, JSON.stringify(vcnvData));
+    io.emit('update-vcnv-data', vcnvData);
+  })
+  socket.on('submit-cnv-mark', (vcnvMark) => {
+    let vcnvData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath));
+    for(let i = 0; i < vcnvMark.length; i++){
+      console.log(i);
+      if(vcnvMark[i] != null){
+        console.log(vcnvMark[i]);
+        if(vcnvMark[i] == true){
+          matchData.players[i].score += vcnvData.questions[5].value;
+        }
+        else{
+          vcnvData.disabledPlayers.push(i);
+        }
+      }
+    }
+    vcnvData.CNVPlayers = [];
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath, JSON.stringify(vcnvData));
+    fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
+    io.emit('update-vcnv-data', vcnvData);
+    io.emit('update-match-data', matchData);
+
+  })
+  
 })
+
 

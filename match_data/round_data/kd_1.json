@@ -59,9 +59,5 @@
             "answer": "b",
             "type": "N"
         }
-    ],
-    "currentQuestionId": 1,
-    "currentRelativeQuestion": 2,
-    "currentAccurateQuestion": 1,
-    "currentTime": 0
+    ]
 }
