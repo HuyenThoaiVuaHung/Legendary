@@ -27,6 +27,8 @@ var adminId= "";
 var matchData = JSON.parse(fs.readFileSync(matchDataPath));
 var lastTurnId = '';
 var timerActive = false;
+var ifLastAnswerCorrect = false;
+var threeSecTimerType = 'N'; // N: No timer, A: Admin, P: Player
 function doTimer(time){
   let counter = time;
   timerActive = true;
@@ -42,6 +44,7 @@ function doTimer(time){
     }
   }, 1000)
 }
+
 function sortByTimestamp(a, b){
   if (a.timestamp < b.timestamp){
     return -1;
@@ -106,8 +109,11 @@ io.on('connection', socket => {
   })
   socket.on('start-clock', (time) => {
     timerActive = false;
-    setTimeout(() => {}, 1000);
-    doTimer(time);
+    //pause 1s
+    setTimeout(() => {
+      doTimer(time);
+    } , 1000);
+
   })
   socket.on('play-pause-clock', (time) => {
     if(matchData.pauseTime == 0 && timerActive == true){
@@ -178,13 +184,13 @@ io.on('connection', socket => {
   socket.on('clear-question-kd', ()=>{
     socket.broadcast.emit('update-kd-question', '');
   })
-  if3SecActive = false;
   socket.on('get-turn-kd', () => {
     io.emit('disable-answer-button-kd');
     lastTurnId = socket.id;
     io.to(adminId).emit('player-got-turn-kd', matchData.players[socketIDs.indexOf(socket.id)]);
   })
-  let ifLastAnswerCorrect = false;
+
+
   socket.on('correct-mark-kd', () => {
     ifLastAnswerCorrect = true;
     io.emit('enable-answer-button-kd');
@@ -192,53 +198,68 @@ io.on('connection', socket => {
     fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
     io.to(adminId).emit('update-match-data', matchData);
     io.to(lastTurnId).emit('update-player-score', matchData.players[socketIDs.indexOf(lastTurnId)].score);
+    threeSecTimerType = 'N';
   })
   socket.on('wrong-mark-kd', (ifPlayer) => {
     ifLastAnswerCorrect = false;
     io.emit('enable-answer-button-kd');
     if(ifPlayer == true){
-      io.to(lastTurnId).emit('disable-answer-button-kd');
+      io.to(lastTurnId).emit('disable-answer-button-kd', true);
     }
-  })
-  let counter = 3;
-  let _ifPlayer = false;
+    threeSecTimerType = 'N';
+  }) 
 
   socket.on('start-3s-timer-kd', (ifPlayer) => {
-    _ifPlayer = ifPlayer;
-    if (if3SecActive == false){
-      counter = 3;
-      io.emit('update-3s-timer-kd', counter);
-      if3SecActive = true;
-      let interval = setInterval(() => {
+    if(ifPlayer){
+      threeSecTimerType = 'P';
+      let counter = 30;
+      io.emit('update-3s-timer-kd', 30, true);
+      var interval = setInterval(() => {
         counter--;
-        io.emit('update-3s-timer-kd', counter);
-        if(counter <= 0 && if3SecActive == true){
+        io.emit('update-3s-timer-kd', counter, true);
+        if (threeSecTimerType == 'N'){
           clearInterval(interval);
-          if3SecActive = false;
-          io.emit('enable-answer-button-kd');
-          io.to(adminId).emit('next-question');
-          if(_ifPlayer == true){
-            io.to(lastTurnId).emit('disable-answer-button-kd');
-          }
-        }
-        else if(if3SecActive == false){
-          clearInterval(interval);
-          io.emit('update-3s-timer-kd', 0);
           io.emit('enable-answer-button-kd');
           if(ifLastAnswerCorrect == false){
+            io.emit('disable-answer-button-kd');
+            ifLastAnswerCorrect = null;
+          }
+          io.emit('update-3s-timer-kd', 0, true)
+          io.emit('update-3s-timer-kd', 0, false)
+
+        }
+        else if (counter == 0){
+          clearInterval(interval);
+          io.emit('enable-answer-button-kd');
+          if (threeSecTimerType == 'P'){
             io.to(lastTurnId).emit('disable-answer-button-kd');
+            threeSecTimerType = 'N';
           }
         }
-      }, 1000)
+      }, 100);
     }
     else {
-      counter = 3;
-      io.emit('update-3s-timer-kd', counter);
+      let counter = 30;
+      threeSecTimerType = 'A';
+      io.emit('update-3s-timer-kd', 30, false);
+      var interval = setInterval(() => {
+        counter--;
+        io.emit('update-3s-timer-kd', counter, false);
+        if(counter == 0){
+          io.to(adminId).emit('next-question');
+          io.emit('enable-answer-button-kd');
+          clearInterval(interval);
+        }
+        else if(threeSecTimerType != 'A'){
+          clearInterval(interval);
+          io.emit('update-3s-timer-kd', 0, false)
+        }
+      }, 100);
     }
   });
   socket.on('stop-3s-timer-kd', () => {
-    if3SecActive = false;
-  })  
+    threeSecTimerType = 'N';
+  });
   socket.on('get-vcnv-data', (callback) => {
     callback(JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath)));
   })
@@ -379,7 +400,6 @@ io.on('connection', socket => {
     io.emit('update-match-data', matchData);
 
   })
-  
 })
 
 
