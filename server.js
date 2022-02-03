@@ -1,4 +1,4 @@
-const { timeStamp } = require('console');
+const { timeStamp, time } = require('console');
 const cryptoJS = require('crypto-js');
 const fs = require('fs');
 const io = require('socket.io')(3000, {
@@ -398,8 +398,85 @@ io.on('connection', socket => {
     fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
     io.emit('update-vcnv-data', vcnvData);
     io.emit('update-match-data', matchData);
-
+  })
+  socket.on('get-tangtoc-data', (callback) => {
+    callback(JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath)));
+  });
+  socket.on('update-tangtoc-data', (data) => {
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath, JSON.stringify(data));
+    io.emit('update-tangtoc-data', data);
+  })
+  socket.on('player-submit-answer-tangtoc', (answer, timestamp) => {
+    let tangtocData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath));
+    tangtocData.playerAnswers[socketIDs.indexOf(socket.id)].answer = answer;
+    tangtocData.playerAnswers[socketIDs.indexOf(socket.id)].timestamp = timestamp;
+    let time = new Date(timestamp);
+    tangtocData.playerAnswers[socketIDs.indexOf(socket.id)].readableTime = time.getHours() + ':' + time.getMinutes() + ':' + time.getSeconds() + '.' + time.getMilliseconds();
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath, JSON.stringify(tangtocData));
+    io.emit('update-tangtoc-data', tangtocData);
+  });
+  socket.on('submit-mark-tangtoc-admin', () => {
+    let tangtocData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath));
+    let markCounter = 4;
+    let markData = tangtocData.playerAnswers.sort(sortByTimestamp);
+    for (let i = 0; i <= 3; i++){
+      if (markData[i].correct == true){
+        matchData.players[markData[i].id - 1].score += markCounter * 10;
+        markCounter--;
+      }
+    }
+    io.emit('update-match-data', matchData);
+    fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
+  });
+  socket.on('toggle-results-display-tangtoc', () => {
+    let tangtocData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath));
+    tangtocData.showResults = !tangtocData.showResults;
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath, JSON.stringify(tangtocData));
+    io.emit('update-tangtoc-data', tangtocData);
+  });
+  socket.on('broadcast-tt-question', (id) => {
+    if(id != -1){
+      let tangtocData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath));
+      io.emit('update-tangtoc-question', tangtocData.questions[id - 1]);
+    }
+    else{
+      io.emit('update-tangtoc-question', undefined);
+    }
+  });
+  socket.on('clear-answer-tt', () => {
+    let tangtocData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath));
+    let resetedData= [{
+      id: 1,
+      answer: '',
+      timestamp: 0,
+      readableTime: '',
+      correct: false
+    },
+    {
+      id: 2,
+      answer: '',
+      timestamp: 0,
+      readableTime: '',
+      correct: false
+    },
+    {
+      id: 3,
+      answer: '',
+      timestamp: 0,
+      readableTime: '',
+      correct: false
+    },
+    {
+      id: 4,
+      answer: '',
+      timestamp: 0,
+      readableTime: '',
+      correct: false
+    }]
+    if (tangtocData.playerAnswers != resetedData){
+      tangtocData.playerAnswers = resetedData;
+    }
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath, JSON.stringify(tangtocData));
+    io.emit('update-tangtoc-data', tangtocData);
   })
 })
-
-
