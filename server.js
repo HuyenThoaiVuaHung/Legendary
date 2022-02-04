@@ -1,10 +1,14 @@
-const { timeStamp } = require('console');
+const { timeStamp, time } = require('console');
 const cryptoJS = require('crypto-js');
 const fs = require('fs');
+const { instrument } = require("@socket.io/admin-ui");
 const io = require('socket.io')(3000, {
   cors: {
     origin: '*',
   }
+});
+instrument(io, {
+  auth: false
 });
 // Nhập mã bí mật ở đây
 var playerSecrets = [
@@ -27,6 +31,8 @@ var adminId= "";
 var matchData = JSON.parse(fs.readFileSync(matchDataPath));
 var lastTurnId = '';
 var timerActive = false;
+var ifLastAnswerCorrect = false;
+var threeSecTimerType = 'N'; // N: No timer, A: Admin, P: Player
 function doTimer(time){
   let counter = time;
   timerActive = true;
@@ -42,6 +48,7 @@ function doTimer(time){
     }
   }, 1000)
 }
+
 function sortByTimestamp(a, b){
   if (a.timestamp < b.timestamp){
     return -1;
@@ -106,8 +113,11 @@ io.on('connection', socket => {
   })
   socket.on('start-clock', (time) => {
     timerActive = false;
-    setTimeout(() => {}, 1000);
-    doTimer(time);
+    //pause 1s
+    setTimeout(() => {
+      doTimer(time);
+    } , 1000);
+
   })
   socket.on('play-pause-clock', (time) => {
     if(matchData.pauseTime == 0 && timerActive == true){
@@ -178,13 +188,13 @@ io.on('connection', socket => {
   socket.on('clear-question-kd', ()=>{
     socket.broadcast.emit('update-kd-question', '');
   })
-  if3SecActive = false;
   socket.on('get-turn-kd', () => {
     io.emit('disable-answer-button-kd');
     lastTurnId = socket.id;
     io.to(adminId).emit('player-got-turn-kd', matchData.players[socketIDs.indexOf(socket.id)]);
   })
-  let ifLastAnswerCorrect = false;
+
+
   socket.on('correct-mark-kd', () => {
     ifLastAnswerCorrect = true;
     io.emit('enable-answer-button-kd');
@@ -192,53 +202,69 @@ io.on('connection', socket => {
     fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
     io.to(adminId).emit('update-match-data', matchData);
     io.to(lastTurnId).emit('update-player-score', matchData.players[socketIDs.indexOf(lastTurnId)].score);
+    threeSecTimerType = 'N';
   })
   socket.on('wrong-mark-kd', (ifPlayer) => {
     ifLastAnswerCorrect = false;
     io.emit('enable-answer-button-kd');
     if(ifPlayer == true){
-      io.to(lastTurnId).emit('disable-answer-button-kd');
+      io.to(lastTurnId).emit('disable-answer-button-kd', true);
     }
-  })
-  let counter = 3;
-  let _ifPlayer = false;
+    threeSecTimerType = 'N';
+  }) 
 
   socket.on('start-3s-timer-kd', (ifPlayer) => {
-    _ifPlayer = ifPlayer;
-    if (if3SecActive == false){
-      counter = 3;
-      io.emit('update-3s-timer-kd', counter);
-      if3SecActive = true;
-      let interval = setInterval(() => {
+    if(ifPlayer){
+      threeSecTimerType = 'P';
+      let counter = 30;
+      io.emit('update-3s-timer-kd', 30, true);
+      var interval = setInterval(() => {
         counter--;
-        io.emit('update-3s-timer-kd', counter);
-        if(counter <= 0 && if3SecActive == true){
+        io.emit('update-3s-timer-kd', counter, true);
+        if (threeSecTimerType == 'N'){
           clearInterval(interval);
-          if3SecActive = false;
-          io.emit('enable-answer-button-kd');
-          io.to(adminId).emit('next-question');
-          if(_ifPlayer == true){
-            io.to(lastTurnId).emit('disable-answer-button-kd');
-          }
-        }
-        else if(if3SecActive == false){
-          clearInterval(interval);
-          io.emit('update-3s-timer-kd', 0);
           io.emit('enable-answer-button-kd');
           if(ifLastAnswerCorrect == false){
-            io.to(lastTurnId).emit('disable-answer-button-kd');
+            io.emit('disable-answer-button-kd');
+            ifLastAnswerCorrect = null;
           }
+          io.emit('update-3s-timer-kd', 0, true)
+          io.emit('update-3s-timer-kd', 0, false)
+
         }
-      }, 1000)
+        else if (counter == 0){
+          clearInterval(interval);
+          io.emit('enable-answer-button-kd');
+          if (threeSecTimerType == 'P'){
+            io.to(lastTurnId).emit('disable-answer-button-kd');
+            threeSecTimerType = 'N';
+          }
+          io.to(adminId).emit('next-question');
+        }
+      }, 100);
     }
     else {
-      counter = 3;
-      io.emit('update-3s-timer-kd', counter);
+      let counter = 30;
+      threeSecTimerType = 'A';
+      io.emit('update-3s-timer-kd', 30, false);
+      var interval = setInterval(() => {
+        counter--;
+        io.emit('update-3s-timer-kd', counter, false);
+        if(counter == 0){
+          io.to(adminId).emit('next-question');
+          io.emit('enable-answer-button-kd');
+          clearInterval(interval);
+        }
+        else if(threeSecTimerType != 'A'){
+          clearInterval(interval);
+          io.emit('update-3s-timer-kd', 0, false)
+        }
+      }, 100);
     }
   });
   socket.on('stop-3s-timer-kd', () => {
-    if3SecActive = false;
-  })  
+    threeSecTimerType = 'N';
+  });
   socket.on('get-vcnv-data', (callback) => {
     callback(JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath)));
   })
@@ -331,7 +357,7 @@ io.on('connection', socket => {
   socket.on('submit-mark-vcnv-admin', (payload) => {
     let vcnvData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath));
     vcnvData.playerAnswers = payload;
-    for (let i = 0; i < 3; i++){
+    for (let i = 0; i <= 3; i++){
       if (payload[i].correct == true){
         matchData.players[i].score += 10;
       }
@@ -377,9 +403,101 @@ io.on('connection', socket => {
     fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
     io.emit('update-vcnv-data', vcnvData);
     io.emit('update-match-data', matchData);
-
   })
-  
+  socket.on('get-tangtoc-data', (callback) => {
+    callback(JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath)));
+  });
+  socket.on('update-tangtoc-data', (data) => {
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath, JSON.stringify(data));
+    io.emit('update-tangtoc-data', data);
+  })
+  socket.on('player-submit-answer-tangtoc', (answer, timestamp) => {
+    let tangtocData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath));
+    tangtocData.playerAnswers[socketIDs.indexOf(socket.id)].answer = answer;
+    tangtocData.playerAnswers[socketIDs.indexOf(socket.id)].timestamp = timestamp;
+    let time = new Date(timestamp);
+    tangtocData.playerAnswers[socketIDs.indexOf(socket.id)].readableTime = time.getHours() + ':' + time.getMinutes() + ':' + time.getSeconds() + '.' + time.getMilliseconds();
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath, JSON.stringify(tangtocData));
+    io.emit('update-tangtoc-data', tangtocData);
+  });
+  socket.on('update-timer-start-timestamp', (timestamp) => {
+    let tangtocData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath));
+    tangtocData.timerStartTimestamp = timestamp;
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath, JSON.stringify(tangtocData));
+    io.emit('update-tangtoc-data', tangtocData);
+  });
+  socket.on('submit-mark-tangtoc-admin', () => {
+    let tangtocData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath));
+    let markCounter = 4;
+    let markData = tangtocData.playerAnswers.sort(sortByTimestamp);
+    for (let i = 0; i <= 3; i++){
+      if (markData[i].correct == true){
+        matchData.players[markData[i].id - 1].score += markCounter * 10;
+        markCounter--;
+      }
+    }
+    io.emit('update-match-data', matchData);
+    fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
+  });
+  socket.on('toggle-results-display-tangtoc', () => {
+    let tangtocData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath));
+    tangtocData.showResults = !tangtocData.showResults;
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath, JSON.stringify(tangtocData));
+    io.emit('update-tangtoc-data', tangtocData);
+  });
+  socket.on('broadcast-tt-question', (id) => {
+    if(id != -1){
+      let tangtocData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath));
+      io.emit('update-tangtoc-question', tangtocData.questions[id - 1]);
+    }
+    else{
+      io.emit('update-tangtoc-question', undefined);
+    }
+  });
+  socket.on('clear-answer-tt', () => {
+    let tangtocData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath));
+    let resetedData= [{
+      id: 1,
+      answer: '',
+      timestamp: 0,
+      readableTime: '',
+      correct: false
+    },
+    {
+      id: 2,
+      answer: '',
+      timestamp: 0,
+      readableTime: '',
+      correct: false
+    },
+    {
+      id: 3,
+      answer: '',
+      timestamp: 0,
+      readableTime: '',
+      correct: false
+    },
+    {
+      id: 4,
+      answer: '',
+      timestamp: 0,
+      readableTime: '',
+      correct: false
+    }]
+    if (tangtocData.playerAnswers != resetedData){
+      tangtocData.playerAnswers = resetedData;
+    }
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath, JSON.stringify(tangtocData));
+    io.emit('update-tangtoc-data', tangtocData);
+  });
+  socket.on('tangtoc-play-video', () => {
+    io.emit('tangtoc-play-video');
+  })
+  socket.on('get-vedich-data', (callback) => {
+    callback(JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath)));
+  });
+  socket.on('update-vedich-data', (data) => {
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath, JSON.stringify(data));
+    io.emit('update-vedich-data', data);
+  });
 })
-
-
