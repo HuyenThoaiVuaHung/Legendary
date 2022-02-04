@@ -2,6 +2,7 @@ const { timeStamp, time } = require('console');
 const cryptoJS = require('crypto-js');
 const fs = require('fs');
 const { instrument } = require("@socket.io/admin-ui");
+const { match } = require('assert');
 const io = require('socket.io')(3000, {
   cors: {
     origin: '*',
@@ -81,10 +82,22 @@ io.on('connection', socket => {
         matchData: matchData
       })
     }
+    else if (authID == 'stream'){
+      callback({
+        roleId: 3,
+        matchData: matchData
+      })
+    }
+    else if (authID == 'mc'){
+      callback({
+        roleId: 2,
+        matchData: matchData
+      })
+    }
     else{
       callback({
-        roleId: -1,
-        matchData: null
+        roleId: 4,
+        matchData: matchData
       })
     }
   })
