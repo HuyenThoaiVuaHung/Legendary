@@ -1,0 +1,37 @@
+{
+    "questionPoolPlayer1": [
+        {
+            "question": "Ngày 21-6-1925 Nguyễn Ái Quốc sáng lập và trực tiếp chỉ đạo xuất bản tờ báo ...., đó là cơ quan của Hội Việt Nam Cách mạng thanh niên, chính thức đặt nền móng cho báo chí cách mạng Việt Nam.",
+            "answer": "Thanh niên",
+            "value": 20,
+            "type": "VD_N"
+        }
+    ],
+    "questionPoolPlayer2": [
+        {
+            "question": "Với việc tổ chức hội nghị Diên Hồng và Bình Than,vị vua nào trở thành hiện thân của tinh thần đại đoàn kết toàn dân, ý chí quyết tâm đánh thắng giặc ngoại xâm, bảo vệ vững chắc quyền độc lập dân tộc?",
+            "answer": "Trần Nhân Tông",
+            "value": 20,
+            "type": "VD_N"
+        }
+    ],
+    "questionPoolPlayer3": [
+        {
+            "question": "Máy đo nồng độ cồn là vật dụng cần thiết để các CSGT kiểm tra nồng độ rượu trong hơi thở của các tài xế. Bạn hãy cho biết trong máy đo nồng độ cồn có hóa chất nào mà có thể phát hiện ra rượu ?",
+            "answer": "CrO3",
+            "value": 20,
+            "type": "VD_N"
+        }
+    ],
+    "questionPoolPlayer4": [
+        {
+            "question": "Bạn hãy trả lời câu hỏi sau bằng Tiếng Anh",
+            "answer": "",
+            "value": 30,
+            "type": "VD_VD",
+            "video_name": "1.mp4"
+        }
+    ],
+    "currentPlayerId": 0
+
+}

@@ -1,10 +1,14 @@
 const { timeStamp, time } = require('console');
 const cryptoJS = require('crypto-js');
 const fs = require('fs');
+const { instrument } = require("@socket.io/admin-ui");
 const io = require('socket.io')(3000, {
   cors: {
     origin: '*',
   }
+});
+instrument(io, {
+  auth: false
 });
 // Nhập mã bí mật ở đây
 var playerSecrets = [
@@ -235,6 +239,7 @@ io.on('connection', socket => {
             io.to(lastTurnId).emit('disable-answer-button-kd');
             threeSecTimerType = 'N';
           }
+          io.to(adminId).emit('next-question');
         }
       }, 100);
     }
@@ -352,7 +357,7 @@ io.on('connection', socket => {
   socket.on('submit-mark-vcnv-admin', (payload) => {
     let vcnvData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath));
     vcnvData.playerAnswers = payload;
-    for (let i = 0; i < 3; i++){
+    for (let i = 0; i <= 3; i++){
       if (payload[i].correct == true){
         matchData.players[i].score += 10;
       }
@@ -412,6 +417,12 @@ io.on('connection', socket => {
     tangtocData.playerAnswers[socketIDs.indexOf(socket.id)].timestamp = timestamp;
     let time = new Date(timestamp);
     tangtocData.playerAnswers[socketIDs.indexOf(socket.id)].readableTime = time.getHours() + ':' + time.getMinutes() + ':' + time.getSeconds() + '.' + time.getMilliseconds();
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath, JSON.stringify(tangtocData));
+    io.emit('update-tangtoc-data', tangtocData);
+  });
+  socket.on('update-timer-start-timestamp', (timestamp) => {
+    let tangtocData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath));
+    tangtocData.timerStartTimestamp = timestamp;
     fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath, JSON.stringify(tangtocData));
     io.emit('update-tangtoc-data', tangtocData);
   });
@@ -478,5 +489,15 @@ io.on('connection', socket => {
     }
     fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath, JSON.stringify(tangtocData));
     io.emit('update-tangtoc-data', tangtocData);
+  });
+  socket.on('tangtoc-play-video', () => {
+    io.emit('tangtoc-play-video');
   })
+  socket.on('get-vedich-data', (callback) => {
+    callback(JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath)));
+  });
+  socket.on('update-vedich-data', (data) => {
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath, JSON.stringify(data));
+    io.emit('update-vedich-data', data);
+  });
 })
