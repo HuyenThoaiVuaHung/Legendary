@@ -32,6 +32,7 @@ var matchData = JSON.parse(fs.readFileSync(matchDataPath));
 var lastTurnId = '';
 var timerActive = false;
 var ifLastAnswerCorrect = false;
+var ifFiveSecActive = false;
 var threeSecTimerType = 'N'; // N: No timer, A: Admin, P: Player
 function doTimer(time){
   let counter = time;
@@ -97,14 +98,12 @@ io.on('connection', socket => {
     }
   })
   socket.on('beginMatch', () => {
-    console.log('Bắt đầu phần khởi động');
     matchData.matchPos = 'KD';
     fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
     socket.broadcast.emit('beginMatch');
   });
   socket.on('change-match-position', (matchPos) => {
     if(socket.id == adminId){
-      console.log('Changed match position at socket: ' + socket.id)
       matchData.matchPos = matchPos;
       fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
       io.emit('update-match-data', matchData);
@@ -121,7 +120,6 @@ io.on('connection', socket => {
   })
   socket.on('play-pause-clock', (time) => {
     if(matchData.pauseTime == 0 && timerActive == true){
-      console.log('timer paused')
       timerActive = false;
       matchData.pauseTime = time;
       fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
@@ -387,9 +385,7 @@ io.on('connection', socket => {
   socket.on('submit-cnv-mark', (vcnvMark) => {
     let vcnvData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath));
     for(let i = 0; i < vcnvMark.length; i++){
-      console.log(i);
       if(vcnvMark[i] != null){
-        console.log(vcnvMark[i]);
         if(vcnvMark[i] == true){
           matchData.players[i].score += vcnvData.questions[5].value;
         }
@@ -500,4 +496,50 @@ io.on('connection', socket => {
     fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath, JSON.stringify(data));
     io.emit('update-vedich-data', data);
   });
-})
+  socket.on('broadcast-vd-question', (id) => {
+    if(id != -1){
+      let vedichData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath));
+      io.emit('update-vedich-question', vedichData.questionPools[vedichData.currentPlayerId - 1][id]);
+    }
+    else{
+      io.emit('update-vedich-question', undefined);
+    }
+  });
+  socket.on('mark-correct-vd', (id, value) => {
+    console.log(id, value);
+    matchData.players[id - 1].score += value;
+    io.emit('update-match-data', matchData);
+    io.emit('clear-stealing-player');
+  })
+  socket.on('mark-incorrect-vd', (id, value) => {
+    matchData.players[id - 1].score -= value/2;
+    io.emit('update-match-data', matchData);
+    io.emit('clear-stealing-player');
+  })
+
+  socket.on('player-steal-question', () => {
+    io.emit('lock-button-vd');
+    ifFiveSecActive = false;
+    io.emit('player-steal-question', socketIDs.indexOf(socket.id));
+  })
+  socket.on('vd-play-video', () => {
+    io.emit('vd-play-video');
+  })
+  socket.on('start-5s-countdown-vd', () => {
+    let counter = 50;
+    ifFiveSecActive = true;
+    io.emit('unlock-button-vd');
+    io.emit('update-5s-countdown-vd', counter);
+    let interval = setInterval(() => {
+      counter--;
+      io.emit('update-5s-countdown-vd', counter);
+      if(ifFiveSecActive == false || counter == 0){
+        clearInterval(interval);
+        counter = 0;
+        io.emit('update-5s-countdown-vd', counter);
+        io.emit('lock-button-vd');
+        ifFiveSecActive = false;
+      }
+    }, 100);
+  })
+});

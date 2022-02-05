@@ -1,1 +1,69 @@
-{"questions":[{"id":1,"question":"Tìm M","answer":"24","type":"TT_IMG","question_image":"1.png","answer_image":"2.png"},{"id":2,"question":"Sắp xếp các hình ảnh theo đúng thứ tự","answer":"BCED","type":"TT_IMG","question_image":"3.png","answer_image":"4.png"},{"id":3,"question":"Tìm hình thích hợp điền vào vị trí của X","answer":"B","type":"TT_IMG","question_image":"5.png","answer_image":"6.png"},{"id":4,"question":"Đây là địa danh nào","answer":"Vũng Tàu","type":"TT_VD","video_name":"1.mp4"}],"playerAnswers":[{"id":1,"answer":"","timestamp":0,"readableTime":"","correct":false},{"id":2,"answer":"","timestamp":0,"readableTime":"","correct":false},{"id":3,"answer":"","timestamp":0,"readableTime":"","correct":false},{"id":4,"answer":"","timestamp":0,"readableTime":"","correct":false}],"showResults":true,"currentQuestion":-1,"showAnswer":false,"timerStartTimestamp":1643961214500}
+{
+    "questions": [
+        {
+            "id": 1,
+            "question": "Tìm M",
+            "answer": "24",
+            "type": "TT_IMG",
+            "question_image": "1.png",
+            "answer_image": "2.png"
+        },
+        {
+            "id": 2,
+            "question": "Sắp xếp các hình ảnh theo đúng thứ tự",
+            "answer": "BCED",
+            "type": "TT_IMG",
+            "question_image": "3.png",
+            "answer_image": "4.png"
+        },
+        {
+            "id": 3,
+            "question": "Tìm hình thích hợp điền vào vị trí của X",
+            "answer": "B",
+            "type": "TT_IMG",
+            "question_image": "5.png",
+            "answer_image": "6.png"
+        },
+        {
+            "id": 4,
+            "question": "Đây là địa danh nào",
+            "answer": "Vũng Tàu",
+            "type": "TT_VD",
+            "video_name": "1.mp4"
+        }
+    ],
+    "playerAnswers": [
+        {
+            "id": 1,
+            "answer": "",
+            "timestamp": 0,
+            "readableTime": "",
+            "correct": false
+        },
+        {
+            "id": 2,
+            "answer": "",
+            "timestamp": 0,
+            "readableTime": "",
+            "correct": false
+        },
+        {
+            "id": 3,
+            "answer": "",
+            "timestamp": 0,
+            "readableTime": "",
+            "correct": false
+        },
+        {
+            "id": 4,
+            "answer": "",
+            "timestamp": 0,
+            "readableTime": "",
+            "correct": false
+        }
+    ],
+    "showResults": true,
+    "currentQuestion": -1,
+    "showAnswer": false,
+    "timerStartTimestamp": 1643981927990
+}
