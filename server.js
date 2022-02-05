@@ -66,7 +66,7 @@ io.on('connection', socket => {
       curAuthID = authID;
       socketIDs[playerSecrets.indexOf(authID)] = socket.id;
       fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
-      console.log("Player " + authID + " connected at " + socket.id);
+      console.log("Player " + matchData.players[playerSecrets.indexOf(authID)].name + " connected at " + socket.id);
       io.to(adminId).emit('update-match-data', matchData);
       callback({
         roleId: 0,
@@ -91,7 +91,7 @@ io.on('connection', socket => {
   })
   socket.on('disconnect', () =>{
     if(socketIDs.includes(socket.id)){
-      console.log('Disconnect at ' + socket.id);
+      console.log('Player ' + matchData.players[socketIDs.indexOf(socket.id)].name + ' disconnected at ' + socket.id);
       matchData.players[socketIDs.indexOf(socket.id)].isReady = false;
       fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
       io.emit('update-match-data', matchData);
@@ -506,7 +506,6 @@ io.on('connection', socket => {
     }
   });
   socket.on('mark-correct-vd', (id, value) => {
-    console.log(id, value);
     matchData.players[id - 1].score += value;
     io.emit('update-match-data', matchData);
     io.emit('clear-stealing-player');
