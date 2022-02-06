@@ -18,6 +18,7 @@ var playerSecrets = [
   "456",
 ];
 var adminSecret = "BTC";
+var mcSecret = "MC"
 // Nhập đường dẫn tới file data trận đấu
 var matchDataPath = "match_data/123.json";
 
@@ -62,12 +63,13 @@ function sortByTimestamp(a, b){
 io.on('connection', socket => {
   socket.on('init-authenticate', (authID,callback) =>{
     if(playerSecrets.includes(authID)){
+      // Nguoi choi
       matchData.players[playerSecrets.indexOf(authID)].isReady = true;
       curAuthID = authID;
       socketIDs[playerSecrets.indexOf(authID)] = socket.id;
       fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
       console.log("Player " + matchData.players[playerSecrets.indexOf(authID)].name + " connected at " + socket.id);
-      io.to(adminId).emit('update-match-data', matchData);
+      io.emit('update-match-data', matchData);
       callback({
         roleId: 0,
         matchData: matchData,
@@ -76,16 +78,27 @@ io.on('connection', socket => {
       });
     }
     else if (authID == adminSecret){
+      // Admin
       adminId = socket.id;
       callback({
         roleId: 1,
         matchData: matchData
       })
     }
-    else{
+    else if (authID == mcSecret){
+      // MC
       callback({
-        roleId: -1,
-        matchData: null
+        roleId: 2,
+        matchData: matchData
+      })
+    }
+    else{
+      // Viewer
+      callback({
+        roleId: 3,
+        matchData: matchData,
+        player: undefined,
+        playerIndex: undefined,
       })
     }
   })
@@ -112,6 +125,8 @@ io.on('connection', socket => {
   })
   socket.on('start-clock', (time) => {
     timerActive = false;
+    matchData.pauseTime = 0;
+    fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
     //pause 1s
     setTimeout(() => {
       doTimer(time);
@@ -189,16 +204,14 @@ io.on('connection', socket => {
   socket.on('get-turn-kd', () => {
     io.emit('disable-answer-button-kd');
     lastTurnId = socket.id;
-    io.to(adminId).emit('player-got-turn-kd', matchData.players[socketIDs.indexOf(socket.id)]);
+    io.emit('player-got-turn-kd', matchData.players[socketIDs.indexOf(socket.id)]);
   })
-
-
   socket.on('correct-mark-kd', () => {
     ifLastAnswerCorrect = true;
     io.emit('enable-answer-button-kd');
     matchData.players[socketIDs.indexOf(lastTurnId)].score += 10;
     fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
-    io.to(adminId).emit('update-match-data', matchData);
+    io.emit('update-match-data', matchData);
     io.to(lastTurnId).emit('update-player-score', matchData.players[socketIDs.indexOf(lastTurnId)].score);
     threeSecTimerType = 'N';
   })
@@ -237,7 +250,7 @@ io.on('connection', socket => {
             io.to(lastTurnId).emit('disable-answer-button-kd');
             threeSecTimerType = 'N';
           }
-          io.to(adminId).emit('next-question');
+          io.emit('next-question');
         }
       }, 100);
     }
@@ -249,7 +262,7 @@ io.on('connection', socket => {
         counter--;
         io.emit('update-3s-timer-kd', counter, false);
         if(counter == 0){
-          io.to(adminId).emit('next-question');
+          io.emit('next-question');
           io.emit('enable-answer-button-kd');
           clearInterval(interval);
         }
@@ -496,17 +509,36 @@ io.on('connection', socket => {
     fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath, JSON.stringify(data));
     io.emit('update-vedich-data', data);
   });
+  var currentVdQuestion = {};
   socket.on('broadcast-vd-question', (id) => {
     if(id != -1){
       let vedichData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath));
       io.emit('update-vedich-question', vedichData.questionPools[vedichData.currentPlayerId - 1][id]);
+      currentVdQuestion = vedichData.questionPools[vedichData.currentPlayerId - 1][id];
     }
     else{
       io.emit('update-vedich-question', undefined);
+      currentVdQuestion = {};
+      let vedichData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath));
+      if(vedichData.ifNSHV == true) {
+        vedichData.ifNSHV = false;
+        fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath, JSON.stringify(vedichData));
+        io.emit('update-vedich-data', vedichData);
+      }
+
     }
   });
   socket.on('mark-correct-vd', (id, value) => {
-    matchData.players[id - 1].score += value;
+    let vedichData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath));
+    if(vedichData.ifNSHV == true){
+      matchData.players[id - 1].score += value * 2;
+      vedichData.ifNSHV = false;
+      fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath, JSON.stringify(vedichData));
+      io.emit('update-vedich-data', vedichData);
+    }
+    else{
+      matchData.players[id - 1].score += value;
+    }
     io.emit('update-match-data', matchData);
     io.emit('clear-stealing-player');
   })
@@ -529,16 +561,44 @@ io.on('connection', socket => {
     ifFiveSecActive = true;
     io.emit('unlock-button-vd');
     io.emit('update-5s-countdown-vd', counter);
+    let vedichData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath));
+    if(vedichData.ifNSHV == true) {
+      vedichData.ifNSHV = false;
+      fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath, JSON.stringify(vedichData));
+      io.emit('update-vedich-data', vedichData);
+    }
+
     let interval = setInterval(() => {
       counter--;
       io.emit('update-5s-countdown-vd', counter);
-      if(ifFiveSecActive == false || counter == 0){
+      if (counter == 0){
+        clearInterval(interval);
+        counter = 0;
+        let vdData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath));
+        if (vdData.ifNSHV == true){
+          matchData.players[vdData.currentPlayerId - 1].score -= currentVdQuestion.value; 
+          vdData.ifNSHV = false;
+          fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath, JSON.stringify(vdData));
+        }
+        io.emit('update-5s-countdown-vd', counter);
+        io.emit('lock-button-vd');
+        ifFiveSecActive = false;
+      }
+      else if(ifFiveSecActive == false){
         clearInterval(interval);
         counter = 0;
         io.emit('update-5s-countdown-vd', counter);
         io.emit('lock-button-vd');
         ifFiveSecActive = false;
+        let vdData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath));
+        if (vdData.ifNSHV == true){
+          vdData.ifNSHV = false;
+          fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath, JSON.stringify(vdData));
+        }
       }
     }, 100);
+  })
+  socket.on('play-sfx', (sfx) => {
+    io.emit('play-sfx', sfx);
   })
 });
