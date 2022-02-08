@@ -102,6 +102,9 @@ io.on('connection', socket => {
       })
     }
   })
+  socket.on('get-match-data', (callback) => {
+    callback(matchData);
+  });
   socket.on('disconnect', () =>{
     if(socketIDs.includes(socket.id)){
       console.log('Player ' + matchData.players[socketIDs.indexOf(socket.id)].name + ' disconnected at ' + socket.id);
@@ -206,6 +209,9 @@ io.on('connection', socket => {
     lastTurnId = socket.id;
     io.emit('player-got-turn-kd', matchData.players[socketIDs.indexOf(socket.id)]);
   })
+  socket.on('clear-turn-kd', () => {
+    io.emit('clear-turn-player-kd');
+  })
   socket.on('correct-mark-kd', () => {
     ifLastAnswerCorrect = true;
     io.emit('enable-answer-button-kd');
@@ -239,6 +245,7 @@ io.on('connection', socket => {
             io.emit('disable-answer-button-kd');
             ifLastAnswerCorrect = null;
           }
+          io.emit('clear-turn-player-kd');
           io.emit('update-3s-timer-kd', 0, true)
           io.emit('update-3s-timer-kd', 0, false)
 
@@ -250,6 +257,7 @@ io.on('connection', socket => {
             io.to(lastTurnId).emit('disable-answer-button-kd');
             threeSecTimerType = 'N';
           }
+          io.emit('clear-turn-player-kd');
           io.emit('next-question');
         }
       }, 100);
@@ -264,11 +272,14 @@ io.on('connection', socket => {
         if(counter == 0){
           io.emit('next-question');
           io.emit('enable-answer-button-kd');
+          io.emit('clear-turn-player-kd');
+          io.emit('play-sfx', 'KD_WRONG');
           clearInterval(interval);
         }
         else if(threeSecTimerType != 'A'){
           clearInterval(interval);
           io.emit('update-3s-timer-kd', 0, false)
+          io.emit('clear-turn-player-kd');
         }
       }, 100);
     }
@@ -561,13 +572,6 @@ io.on('connection', socket => {
     ifFiveSecActive = true;
     io.emit('unlock-button-vd');
     io.emit('update-5s-countdown-vd', counter);
-    let vedichData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath));
-    if(vedichData.ifNSHV == true) {
-      vedichData.ifNSHV = false;
-      fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath, JSON.stringify(vedichData));
-      io.emit('update-vedich-data', vedichData);
-    }
-
     let interval = setInterval(() => {
       counter--;
       io.emit('update-5s-countdown-vd', counter);
@@ -576,9 +580,13 @@ io.on('connection', socket => {
         counter = 0;
         let vdData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath));
         if (vdData.ifNSHV == true){
+          console.log('NSHV');
           matchData.players[vdData.currentPlayerId - 1].score -= currentVdQuestion.value; 
           vdData.ifNSHV = false;
           fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath, JSON.stringify(vdData));
+          fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
+          io.emit('update-vedich-data', vdData);
+          io.emit('update-match-data', matchData);
         }
         io.emit('update-5s-countdown-vd', counter);
         io.emit('lock-button-vd');
@@ -593,7 +601,10 @@ io.on('connection', socket => {
         let vdData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath));
         if (vdData.ifNSHV == true){
           vdData.ifNSHV = false;
+          fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
           fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath, JSON.stringify(vdData));
+          io.emit('update-vedich-data', vdData);
+          io.emit('update-match-data', matchData);
         }
       }
     }, 100);
