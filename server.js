@@ -256,6 +256,7 @@ io.on('connection', socket => {
           if (threeSecTimerType == 'P'){
             io.to(lastTurnId).emit('disable-answer-button-kd');
             threeSecTimerType = 'N';
+            io.emit('play-sfx', 'KD_WRONG');
           }
           io.emit('clear-turn-player-kd');
           io.emit('next-question');
