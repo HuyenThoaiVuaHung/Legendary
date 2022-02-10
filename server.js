@@ -297,11 +297,45 @@ io.on('connection', socket => {
     }
   })
   socket.on('update-vcnv-data', (payload) => {
-    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath, JSON.stringify(payload));
-    socket.broadcast.emit('update-vcnv-data', payload);
+    let payloadData = payload;
+    switch (payloadData.noOfOpenRows) {
+      case 0: payloadData.questions[5].value = 80;
+        break;
+      case 1: payloadData.questions[5].value = 80;
+        break;
+      case 2: payloadData.questions[5].value = 60;
+        break;
+      case 3: payloadData.questions[5].value = 40;
+        break;
+      case 4: payloadData.questions[5].value = 20;
+        break;
+      case 5: payloadData.questions[5].value = 10;
+        break;
+    }
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath, JSON.stringify(payloadData));
+    io.emit('update-vcnv-data', payloadData);
   })
   socket.on('broadcast-vcnv-question', (questionId) => {
-    socket.broadcast.emit('update-vcnv-question', JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath)).questions[questionId - 1]);
+    io.emit('update-vcnv-question', JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath)).questions[questionId - 1]);
+    let vcnvData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath));
+    vcnvData.noOfOpenRows++;
+    switch (vcnvData.noOfOpenRows) {
+      case 0: vcnvData.questions[5].value = 80;
+        break;
+      case 1: vcnvData.questions[5].value = 80;
+        break;
+      case 2: vcnvData.questions[5].value = 60;
+        break;
+      case 3: vcnvData.questions[5].value = 40;
+        break;
+      case 4: vcnvData.questions[5].value = 20;
+        break;
+      case 5: vcnvData.questions[5].value = 10;
+        break;
+    }
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath, JSON.stringify(vcnvData));
+    io.emit('update-vcnv-data', vcnvData);
+
   })
   socket.on('highlight-vcnv-question', (questionId) => {
     io.emit('update-highlighted-vcnv-question', questionId);
@@ -316,26 +350,6 @@ io.on('connection', socket => {
     let vcnvData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath));
     vcnvData.questions[id - 1].ifOpen = true;
     fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath, JSON.stringify(vcnvData));
-    let openedHN = 0;
-    for (let i = 0; i < vcnvData.questions.length; i++) {
-      if (vcnvData.questions[i].ifOpen == true) {
-        openedHN++;
-      }
-    }
-    switch (openedHN) {
-      case 0: vcnvData.questions[5].value = 80;
-        break;
-      case 1: vcnvData.questions[5].value = 80;
-        break;
-      case 2: vcnvData.questions[5].value = 60;
-        break;
-      case 3: vcnvData.questions[5].value = 40;
-        break;
-      case 4: vcnvData.questions[5].value = 20;
-        break;
-      case 5: vcnvData.questions[5].value = 10;
-        break;
-    }
     fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath, JSON.stringify(vcnvData));
     io.emit('update-vcnv-data', vcnvData);
   })
