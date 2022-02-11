@@ -203,11 +203,7 @@ io.on('connection', socket => {
   })
   socket.on('get-turn-kd', () => {
     lastTurnId = socket.id;
-    io.emit('disable-answer-button-kd', (callback) => {
-      if (lastTurnId == socket.id) {
-        callback('Success');
-      }
-    });
+    io.emit('disable-answer-button-kd');
     io.emit('player-got-turn-kd', matchData.players[socketIDs.indexOf(socket.id)]);
   })
   socket.on('clear-turn-kd', () => {
