@@ -345,7 +345,6 @@ io.on('connection', socket => {
   })
   socket.on('submit-answer-vcnv', (answer) => {
     let vcnvData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath));
-    console.log(socket.id)
     vcnvData.playerAnswers[socketIDs.indexOf(socket.id)].answer = answer;
     fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath, JSON.stringify(vcnvData));
     io.emit('update-vcnv-data', vcnvData);
@@ -387,8 +386,6 @@ io.on('connection', socket => {
   socket.on('clear-player-answer', () => {
     //read vcnvFile
     let vcnvData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath));
-    console.log(socketIDs);
-    console.log(socket.id);
     vcnvData.playerAnswers[socketIDs.indexOf(socket.id)].answer = '';
     vcnvData.playerAnswers[socketIDs.indexOf(socket.id)].correct = false;
     fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath, JSON.stringify(vcnvData));
@@ -590,7 +587,6 @@ io.on('connection', socket => {
     io.emit('unlock-button-vd');
     let vdData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath));
     if (vdData.ifNSHV == true) {
-      console.log('NSHV');
       matchData.players[vdData.currentPlayerId - 1].score -= currentVdQuestion.value;
       vdData.ifNSHV = false;
       fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath, JSON.stringify(vdData));
