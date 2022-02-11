@@ -73,6 +73,7 @@ io.on('connection', socket => {
     }
     else if (authID == adminSecret) {
       // Admin
+      console.log("Admin connected at " + socket.id);
       adminId = socket.id;
       callback({
         roleId: 1,
@@ -81,6 +82,7 @@ io.on('connection', socket => {
     }
     else if (authID == mcSecret) {
       // MC
+      console.log("MC connected at " + socket.id);
       callback({
         roleId: 2,
         matchData: matchData
@@ -88,6 +90,7 @@ io.on('connection', socket => {
     }
     else {
       // Viewer
+      console.log('Viewer connected at ' + socket.id);
       callback({
         roleId: 3,
         matchData: matchData,
@@ -342,6 +345,7 @@ io.on('connection', socket => {
   })
   socket.on('submit-answer-vcnv', (answer) => {
     let vcnvData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath));
+    console.log(socket.id)
     vcnvData.playerAnswers[socketIDs.indexOf(socket.id)].answer = answer;
     fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath, JSON.stringify(vcnvData));
     io.emit('update-vcnv-data', vcnvData);
@@ -383,6 +387,8 @@ io.on('connection', socket => {
   socket.on('clear-player-answer', () => {
     //read vcnvFile
     let vcnvData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath));
+    console.log(socketIDs);
+    console.log(socket.id);
     vcnvData.playerAnswers[socketIDs.indexOf(socket.id)].answer = '';
     vcnvData.playerAnswers[socketIDs.indexOf(socket.id)].correct = false;
     fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath, JSON.stringify(vcnvData));
