@@ -101,7 +101,9 @@ io.on('connection', socket => {
     }
   })
   socket.on('get-match-data', (callback) => {
-    callback(matchData);
+    if (callback){
+      callback(matchData)
+    }
   });
   socket.on('disconnect', () => {
     if (socketIDs.includes(socket.id)) {
@@ -558,8 +560,10 @@ io.on('connection', socket => {
   });
   let lastStealingPlayerId = -1;
   socket.on('mark-correct-vd', (id, value) => {
+    console.log('Chấm cho ts: ' + id)
     let vedichData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath));
-    if (vedichData.ifNSHV == true) {
+    if (vedichData.ifNSHV == true && lastStealingPlayerId != -1) {
+      console.log('Chấm điểm nshv cho thí sinh + ' + id)
       matchData.players[id - 1].score += value * 2;
       vedichData.ifNSHV = false;
       fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath, JSON.stringify(vedichData));
@@ -567,20 +571,29 @@ io.on('connection', socket => {
     }
     else {
       if (lastStealingPlayerId != -1) {
+        console.log('Chấm điểm đúng thí sinh cướp câu hỏi ' + id)
         matchData.players[id - 1].score += value;
       }
       else {
+        console.log('Chấm điểm đúng thí sinh ' + id)
         matchData.players[id - 1].score += value;
         if(vedichData.ifNSHV == false) matchData.players[vedichData.currentPlayerId - 1].score -= value;
       }
     }
-    fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
+    vedichData.ifNSHV = false;
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath, JSON.stringify(vedichData));
+    io.emit('update-vedich-data', vedichData);
     io.emit('update-match-data', matchData);
     io.emit('clear-stealing-player');
   })
   socket.on('mark-incorrect-vd', (id, value) => {
+    console.log('cHAM SAI')
     matchData.players[id - 1].score -= value / 2;
     lastStealingPlayerId = -1;
+    let vedichData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath));
+    vedichData.ifNSHV = false;
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath, JSON.stringify(vedichData));
+    io.emit('update-vedich-data', vedichData);
     io.emit('update-match-data', matchData);
     io.emit('clear-stealing-player');
   })
@@ -601,7 +614,6 @@ io.on('connection', socket => {
     let vdData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath));
     if (vdData.ifNSHV == true) {
       matchData.players[vdData.currentPlayerId - 1].score -= currentVdQuestion.value;
-      vdData.ifNSHV = false;
       fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath, JSON.stringify(vdData));
       fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
       io.emit('update-vedich-data', vdData);
