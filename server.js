@@ -448,10 +448,11 @@ io.on('connection', socket => {
     if (mainTimer > 0){
       io.emit('enable-answer-button-kd');
     }
-    if (ifPlayer == true) {
-      console.log(lastTurnId)
-      io.to(lastTurnId).emit('disable-answer-button-kd');
-    }
+    // if (ifPlayer == true) {
+    //   console.log(lastTurnId)
+    //   io.to(lastTurnId).emit('disable-answer-button-kd');
+    // }
+    matchData.players[socketIDs.indexOf(lastTurnId)].score -=10;
     threeSecTimerType = 'N';
     lastTurnId = '';
   })
