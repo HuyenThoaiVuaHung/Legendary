@@ -443,19 +443,28 @@ io.on('connection', socket => {
     threeSecTimerType = 'N';
     lastTurnId = '';
   })
-  socket.on('wrong-mark-kd', (ifPlayer) => {
-    ifLastAnswerCorrect = false;
-    if (mainTimer > 0){
-      io.emit('enable-answer-button-kd');
-    }
-    // if (ifPlayer == true) {
-    //   console.log(lastTurnId)
-    //   io.to(lastTurnId).emit('disable-answer-button-kd');
-    // }
-    matchData.players[socketIDs.indexOf(lastTurnId)].score -=10;
+  socket.on('wrong-mark-kd', () => {
+    // ifLastAnswerCorrect = true;
+    io.emit('enable-answer-button-kd');
+    matchData.players[socketIDs.indexOf(lastTurnId)].score -= 5;
+    fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
+    io.emit('update-match-data', matchData);
+    io.to(lastTurnId).emit('update-player-score', matchData.players[socketIDs.indexOf(lastTurnId)].score);
     threeSecTimerType = 'N';
     lastTurnId = '';
   })
+  // socket.on('wrong-mark-kd', (ifPlayer) => {
+  //   ifLastAnswerCorrect = false;
+  //   if (mainTimer > 0){
+  //     io.emit('enable-answer-button-kd');
+  //   }
+  //   if (ifPlayer == true) {
+  //     console.log(lastTurnId)
+  //     io.to(lastTurnId).emit('disable-answer-button-kd');
+  //   }
+  //   threeSecTimerType = 'N';
+  //   lastTurnId = '';
+  // })
   socket.on('start-3s-timer-kd', (ifPlayer) => {
     if (ifPlayer) {
       threeSecTimerType = 'P';
@@ -471,7 +480,7 @@ io.on('connection', socket => {
             io.emit('next-question');
           }
           if (ifLastAnswerCorrect == false) {
-            io.to(lastTurnId).emit('disable-answer-button-kd');
+            // io.to(lastTurnId).emit('disable-answer-button-kd');
             ifLastAnswerCorrect = null;
           }
           lastTurnId = '';
