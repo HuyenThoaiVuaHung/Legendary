@@ -885,7 +885,36 @@ io.on('connection', socket => {
   socket.on('play-sfx', (sfx) => {
     io.emit('play-sfx', sfx);
   });
+  var chpTurnId = -1;
+  var chpLastTurnSocketId = '';
   socket.on('get-chp-data', (callback) => {
     callback(JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).ChpFilePath)));
   })
+  socket.on('update-chp-data', (data) => {
+    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).ChpFilePath, JSON.stringify(data));
+    io.emit('update-chp-data', data);
+  })
+  socket.on('broadcast-chp-question', (id) => {
+    io.emit('unlock-button-chp');
+    chpData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).ChpFilePath));
+    io.emit('update-chp-question', chpData.questions[id]);
+  })
+  socket.on('get-turn-chp', () => {
+    if(chpTurnId == -1){
+      chpLastTurnSocketId = socket.id;
+      chpTurnId = socketIDs.indexOf(socket.id);
+      io.emit('lock-button-chp');
+      io.emit('get-turn-chp', chpTurnId);
+    }
+  });
+  socket.on('mark-correct-chp', () => {
+    io.emit('play-sfx', 'VD_CORRECT');
+  })
+  socket.on('mark-wrong-chp', () => {
+    io.emit('play-sfx', 'VD_WRONG');
+    io.to(chpLastTurnSocketId).emit('lock-button-chp');
+    chpTurnId = -1;
+    chpLastTurnSocketId = '';
+  })
+
 });
