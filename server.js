@@ -25,6 +25,7 @@ var socketIDs = ['', '', '', ''];
 var adminId = "";
 var matchData = JSON.parse(fs.readFileSync(matchDataPath));
 var lastTurnId = '';
+let lastStealingPlayerId = -1;
 var timerActive = false;
 var ifFiveSecActive = false;
 let mainTimer = 0;
@@ -543,29 +544,14 @@ io.on('connection', socket => {
     }
   })
   socket.on('update-vcnv-data', (payload) => {
-    let payloadData = payload;
-    switch (payloadData.noOfOpenRows) {
-      case 0: payloadData.questions[5].value = 80;
-        break;
-      case 1: payloadData.questions[5].value = 80;
-        break;
-      case 2: payloadData.questions[5].value = 60;
-        break;
-      case 3: payloadData.questions[5].value = 40;
-        break;
-      case 4: payloadData.questions[5].value = 20;
-        break;
-      case 5: payloadData.questions[5].value = 10;
-        break;
+    let vcnvData = payload;
+    let counter = 0;
+    for (let i = 0; i < vcnvData.questions.length; i++) {
+      if(vcnvData.questions[i].ifShown == true){
+        counter++;
+      }
     }
-    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath, JSON.stringify(payloadData));
-    io.emit('update-vcnv-data', payloadData);
-  })
-  socket.on('broadcast-vcnv-question', (questionId) => {
-    io.emit('update-vcnv-question', JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath)).questions[questionId - 1]);
-    let vcnvData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath));
-    vcnvData.noOfOpenRows++;
-    switch (vcnvData.noOfOpenRows) {
+    switch (counter) {
       case 0: vcnvData.questions[5].value = 80;
         break;
       case 1: vcnvData.questions[5].value = 80;
@@ -581,7 +567,14 @@ io.on('connection', socket => {
     }
     fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath, JSON.stringify(vcnvData));
     io.emit('update-vcnv-data', vcnvData);
-
+  })
+  socket.on('broadcast-vcnv-question', (questionId) => {
+    if (questionId < 6){
+      io.emit('update-vcnv-question', JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath)).questions[questionId - 1]);
+    }
+    else {
+      io.emit('update-vcnv-question', {question: ''})
+    }
   })
   socket.on('highlight-vcnv-question', (questionId) => {
     io.emit('update-highlighted-vcnv-question', questionId);
@@ -603,28 +596,6 @@ io.on('connection', socket => {
     let vcnvData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath));
     vcnvData.questions[id - 1].ifOpen = false;
     fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath, JSON.stringify(vcnvData));
-    let openedHN = 0;
-    for (let i = 0; i < vcnvData.questions.length; i++) {
-      if (vcnvData.questions[i].ifOpen == true) {
-        openedHN++;
-      }
-    }
-    switch (openedHN) {
-      case 0: vcnvData.questions[5].value = 80;
-        break;
-      case 1: vcnvData.questions[5].value = 80;
-        break;
-      case 2: vcnvData.questions[5].value = 60;
-        break;
-      case 3: vcnvData.questions[5].value = 40;
-        break;
-      case 4: vcnvData.questions[5].value = 20;
-        break;
-      case 5: vcnvData.questions[5].value = 10;
-        break;
-    }
-    fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath, JSON.stringify(vcnvData));
-    io.emit('update-vcnv-data', vcnvData);
   })
   socket.on('clear-player-answer', () => {
     //read vcnvFile
@@ -799,16 +770,13 @@ io.on('connection', socket => {
       }
     }
   });
-  let lastStealingPlayerId = -1;
   socket.on('mark-correct-vd', (id, value) => {
     console.log('Chấm cho ts: ' + id)
     let vedichData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath));
-    if (vedichData.ifNSHV == true && lastStealingPlayerId != -1) {
+    if (vedichData.ifNSHV == true && lastStealingPlayerId == -1) {
       console.log('Chấm điểm nshv cho thí sinh + ' + id)
       matchData.players[id - 1].score += value * 2;
       vedichData.ifNSHV = false;
-      fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath, JSON.stringify(vedichData));
-      io.emit('update-vedich-data', vedichData);
     }
     else {
       if (lastStealingPlayerId != -1) {
@@ -818,17 +786,18 @@ io.on('connection', socket => {
       else {
         console.log('Chấm điểm đúng thí sinh ' + id)
         matchData.players[id - 1].score += value;
-        if (vedichData.ifNSHV == false) matchData.players[vedichData.currentPlayerId - 1].score -= value;
       }
     }
     vedichData.ifNSHV = false;
+    lastStealingPlayerId = -1;
     fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath, JSON.stringify(vedichData));
+    fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
     io.emit('update-vedich-data', vedichData);
     io.emit('update-match-data', matchData);
     io.emit('clear-stealing-player');
   })
   socket.on('mark-incorrect-vd', (id, value) => {
-    console.log('cHAM SAI')
+    console.log('Chấm sai cho thí sinh ' + id)
     matchData.players[id - 1].score -= value / 2;
     lastStealingPlayerId = -1;
     let vedichData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath));
