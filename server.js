@@ -134,66 +134,33 @@ io.on('connection', socket => {
       let ttData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath));
       let vdData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath));
       vdData.questions = [];
+      function KDprep(st, fin) {
+        for (let i = st; i <= fin; i++) {
+          if (recievedJSON.kd[i].__EMPTY) {
+            let question = {};
+            question.question = recievedJSON.kd[i].__EMPTY;
+            question.answer = recievedJSON.kd[i].__EMPTY_1;
+            if (recievedJSON.kd[i].__EMPTY_2) {
+              question.type = 'P'
+              question.audioFilePath = recievedJSON.kd[i].__EMPTY_2;
+            }
+            else if (recievedJSON.kd[i].__EMPTY_3) {
+              question.type = 'A'
+              question.audioFilePath = recievedJSON.kd[i].__EMPTY_2;
+            }
+            else {
+              question.type = 'N'
+            }
+            kdData.questions.push(question);
+          }
+        }
+      }
       console.log('Chuẩn bị dữ liệu lượt 1...');
-      for (let i = 3; i <= 25; i++) {
-        if (recievedJSON.kd[i].__EMPTY) {
-          let question = {}
-          question.question = recievedJSON.kd[i].__EMPTY;
-          question.answer = recievedJSON.kd[i].__EMPTY_1;
-          if (recievedJSON.kd[i].__EMPTY_2) {
-            question.type = 'P'
-            question.audioFilePath = recievedJSON.kd[i].__EMPTY_2;
-          }
-          else if (recievedJSON.kd[i].__EMPTY_3) {
-            question.type = 'A'
-            question.audioFilePath = recievedJSON.kd[i].__EMPTY_2;
-          }
-          else {
-            question.type = 'N'
-          }
-          kdData.questions.push(question);
-        }
-      }
+      KDprep(3, 25);
       console.log('Chuẩn bị dữ liệu lượt 2...');
-      for (let i = 30; i <= 54; i++) {
-        if (recievedJSON.kd[i].__EMPTY) {
-          let question = {}
-          question.question = recievedJSON.kd[i].__EMPTY;
-          question.answer = recievedJSON.kd[i].__EMPTY_1;
-          if (recievedJSON.kd[i].__EMPTY_2) {
-            question.type = 'P'
-            question.audioFilePath = recievedJSON.kd[i].__EMPTY_2;
-          }
-          else if (recievedJSON.kd[i].__EMPTY_3) {
-            question.type = 'A'
-            question.audioFilePath = recievedJSON.kd[i].__EMPTY_2;
-          }
-          else {
-            question.type = 'N'
-          }
-          kdData.questions.push(question);
-        }
-      }
+      KDprep(30, 54);
       console.log('Chuẩn bị dữ liệu lượt 3...');
-      for (let i = 57; i <= 91; i++) {
-        if (recievedJSON.kd[i].__EMPTY) {
-          let question = {}
-          question.question = recievedJSON.kd[i].__EMPTY;
-          question.answer = recievedJSON.kd[i].__EMPTY_1;
-          if (recievedJSON.kd[i].__EMPTY_2) {
-            question.type = 'P'
-            question.audioFilePath = recievedJSON.kd[i].__EMPTY_2;
-          }
-          else if (recievedJSON.kd[i].__EMPTY_3) {
-            question.type = 'A'
-            question.audioFilePath = recievedJSON.kd[i].__EMPTY_2;
-          }
-          else {
-            question.type = 'N'
-          }
-          kdData.questions.push(question);
-        }
-      }
+      KDprep(57, 91);
       console.log(kdData.questions.length)
       fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath, JSON.stringify(kdData));
       io.emit('update-kd-data-admin', kdData);
@@ -232,111 +199,41 @@ io.on('connection', socket => {
       io.emit('update-tangtoc-data', ttData);
       console.log('Hoàn thành nhập đề tăng tốc');
       console.log('Bắt đầu nhập đề về đích...');
+      function VDprep(sta, fin) {
+        for (let i = sta; i <= fin; i++) {
+          vdData.questionPools[0][i - sta].question = recievedJSON.vd[i].__EMPTY;
+          vdData.questionPools[0][i - sta].answer = recievedJSON.vd[i].__EMPTY_1;
+          if (recievedJSON.vd[i]['VỀ ĐÍCH'] == "Câu hỏi 20 điểm") {
+            vdData.questionPools[0][i - sta].value = 20;
+          }
+          else {
+            vdData.questionPools[0][i - sta].value = 30;
+          }
+          if (recievedJSON.vd[i].__EMPTY_2) {
+            vdData.questionPools[0][i - sta].type = 'V';
+            vdData.questionPools[0][i - sta].file_name = recievedJSON.vd[i].__EMPTY_2;
+          }
+          else if (recievedJSON.vd[i].__EMPTY_3) {
+            vdData.questionPools[0][i - sta].type = 'I';
+            vdData.questionPools[0][i - sta].file_name = recievedJSON.vd[i].__EMPTY_3;
+          }
+          else if (recievedJSON.vd[i].__EMPTY_5) {
+            vdData.questionPools[0][i - sta].type = 'A';
+            vdData.questionPools[0][i - sta].file_name = recievedJSON.vd[i].__EMPTY_5;
+          }
+          else {
+            vdData.questionPools[0][i - 3].type = 'N';
+          }
+        }
+      }
       console.log('Chuẩn bị dữ liệu TS 1...');
-      for (let i = 3; i <= 8; i++) {
-        vdData.questionPools[0][i - 3].question = recievedJSON.vd[i].__EMPTY;
-        vdData.questionPools[0][i - 3].answer = recievedJSON.vd[i].__EMPTY_1;
-        if (recievedJSON.vd[i]['VỀ ĐÍCH'] == "Câu hỏi 20 điểm") {
-          vdData.questionPools[0][i - 3].value = 20;
-        }
-        else {
-          vdData.questionPools[0][i - 3].value = 30;
-        }
-        if (recievedJSON.vd[i].__EMPTY_2) {
-          vdData.questionPools[0][i - 3].type = 'V';
-          vdData.questionPools[0][i - 3].file_name = recievedJSON.vd[i].__EMPTY_2;
-        }
-        else if (recievedJSON.vd[i].__EMPTY_3) {
-          vdData.questionPools[0][i - 3].type = 'I';
-          vdData.questionPools[0][i - 3].file_name = recievedJSON.vd[i].__EMPTY_3;
-        }
-        else if (recievedJSON.vd[i].__EMPTY_5) {
-          vdData.questionPools[0][i - 3].type = 'A';
-          vdData.questionPools[0][i - 3].file_name = recievedJSON.vd[i].__EMPTY_5;
-        }
-        else {
-          vdData.questionPools[0][i - 3].type = 'N';
-        }
-      }
+      VDprep(3, 8);
       console.log('Chuẩn bị dữ liệu TS 2...');
-
-      for (let i = 11; i <= 16; i++) {
-        vdData.questionPools[1][i - 11].question = recievedJSON.vd[i].__EMPTY;
-        vdData.questionPools[1][i - 11].answer = recievedJSON.vd[i].__EMPTY_1;
-        if (recievedJSON.vd[i]['VỀ ĐÍCH'] == "Câu hỏi 20 điểm") {
-          vdData.questionPools[1][i - 11].value = 20;
-        }
-        else {
-          vdData.questionPools[1][i - 11].value = 30;
-        }
-        if (recievedJSON.vd[i].__EMPTY_2) {
-          vdData.questionPools[1][i - 11].type = 'V';
-          vdData.questionPools[1][i - 11].file_name = recievedJSON.vd[i].__EMPTY_2;
-        }
-        else if (recievedJSON.vd[i].__EMPTY_3) {
-          vdData.questionPools[1][i - 11].type = 'I';
-          vdData.questionPools[1][i - 11].file_name = recievedJSON.vd[i].__EMPTY_3;
-        }
-        else if (recievedJSON.vd[i].__EMPTY_5) {
-          vdData.questionPools[1][i - 11].type = 'A';
-          vdData.questionPools[1][i - 11].file_name = recievedJSON.vd[i].__EMPTY_5;
-        }
-        else {
-          vdData.questionPools[1][i - 11].type = 'N';
-        }
-      }
+      VDprep(11, 16);
       console.log('Chuẩn bị dữ liệu TS 3...');
-      for (let i = 19; i <= 24; i++) {
-        vdData.questionPools[2][i - 19].question = recievedJSON.vd[i].__EMPTY;
-        vdData.questionPools[2][i - 19].answer = recievedJSON.vd[i].__EMPTY_1;
-        if (recievedJSON.vd[i]['VỀ ĐÍCH'] == "Câu hỏi 20 điểm") {
-          vdData.questionPools[2][i - 19].value = 20;
-        }
-        else {
-          vdData.questionPools[2][i - 19].value = 30;
-        }
-        if (recievedJSON.vd[i].__EMPTY_2) {
-          vdData.questionPools[2][i - 19].type = 'V';
-          vdData.questionPools[2][i - 19].file_name = recievedJSON.vd[i].__EMPTY_2;
-        }
-        else if (recievedJSON.vd[i].__EMPTY_3) {
-          vdData.questionPools[2][i - 19].type = 'I';
-          vdData.questionPools[2][i - 19].file_name = recievedJSON.vd[i].__EMPTY_3;
-        }
-        else if (recievedJSON.vd[i].__EMPTY_5) {
-          vdData.questionPools[2][i - 19].type = 'A';
-          vdData.questionPools[2][i - 19].file_name = recievedJSON.vd[i].__EMPTY_5;
-        }
-        else {
-          vdData.questionPools[2][i - 19].type = 'N';
-        }
-      }
+      VDprep(19, 24);
       console.log('Chuẩn bị dữ liệu TS 4...');
-      for (let i = 27; i <= 32; i++) {
-        vdData.questionPools[3][i - 27].question = recievedJSON.vd[i].__EMPTY;
-        vdData.questionPools[3][i - 27].answer = recievedJSON.vd[i].__EMPTY_1;
-        if (recievedJSON.vd[i]['VỀ ĐÍCH'] == "Câu hỏi 20 điểm") {
-          vdData.questionPools[3][i - 27].value = 20;
-        }
-        else {
-          vdData.questionPools[3][i - 27].value = 30;
-        }
-        if (recievedJSON.vd[i].__EMPTY_2) {
-          vdData.questionPools[3][i - 27].type = 'V';
-          vdData.questionPools[3][i - 27].file_name = recievedJSON.vd[i].__EMPTY_2;
-        }
-        else if (recievedJSON.vd[i].__EMPTY_3) {
-          vdData.questionPools[3][i - 27].type = 'I';
-          vdData.questionPools[3][i - 27].file_name = recievedJSON.vd[i].__EMPTY_3;
-        }
-        else if (recievedJSON.vd[i].__EMPTY_5) {
-          vdData.questionPools[3][i - 27].type = 'A';
-          vdData.questionPools[3][i - 27].file_name = recievedJSON.vd[i].__EMPTY_5;
-        }
-        else {
-          vdData.questionPools[3][i - 27].type = 'N';
-        }
-      }
+      VDprep(27, 32);
       fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath, JSON.stringify(vdData));
       io.emit('update-vedich-data', vdData);
       console.log('Hoàn thành nhập từ file excel')
@@ -377,7 +274,7 @@ io.on('connection', socket => {
       var kd_data = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath));
       kd_data.questions.push(payload);
       fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath, JSON.stringify(kd_data));
-      socket.emit('update-kd-data-admin', kd_data)
+      socket.emit('update-kd-data-admin', kd_data);
     }
   })
   socket.on('edit-kd-question', (payload, callback) => {
