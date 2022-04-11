@@ -4,6 +4,7 @@ const io = require('socket.io')(3000, {
     origin: '*',
   }
 });
+console.log('Server khởi động thành công, đang chờ kết nối mới..');
 // Nhập mã bí mật ở đây
 var playerSecrets = [
   "123",
@@ -224,10 +225,10 @@ io.on('connection', socket => {
           ttData.questions[i - 2].answer_image = recievedJSON.tt[i].__EMPTY_2
         }
       }
-      ttData.questions[0].question_image = recievedJSON.tt[10].__EMPTY;
-      ttData.questions[1].question_image = recievedJSON.tt[10].__EMPTY_2;
-      ttData.questions[2].question_image = recievedJSON.tt[10].__EMPTY_4;
-      ttData.questions[3].video_name = recievedJSON.tt[10].__EMPTY_6;
+      ttData.questions[0].question_image = recievedJSON.tt[9].__EMPTY;
+      ttData.questions[1].question_image = recievedJSON.tt[9].__EMPTY_2;
+      ttData.questions[2].question_image = recievedJSON.tt[9].__EMPTY_4;
+      ttData.questions[3].video_name = recievedJSON.tt[9].__EMPTY_6;
       fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath, JSON.stringify(ttData));
       io.emit('update-tangtoc-data', ttData);
       console.log('Hoàn thành nhập đề tăng tốc');
@@ -595,6 +596,7 @@ io.on('connection', socket => {
   socket.on('close-hn-vcnv', (id) => {
     let vcnvData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath));
     vcnvData.questions[id - 1].ifOpen = false;
+    io.emit('update-vcnv-data', vcnvData);
     fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath, JSON.stringify(vcnvData));
   })
   socket.on('clear-player-answer', () => {
