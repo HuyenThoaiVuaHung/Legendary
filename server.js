@@ -782,8 +782,9 @@ io.on('connection', socket => {
     }
     else {
       if (lastStealingPlayerId != -1) {
-        console.log('Chấm điểm đúng thí sinh cướp câu hỏi ' + id)
+        console.log('Chấm điểm đúng thí sinh cướp câu hỏi ' + id);
         matchData.players[id - 1].score += value;
+        matchData.players[vedichData.currentPlayerId - 1].score -= value;
       }
       else {
         console.log('Chấm điểm đúng thí sinh ' + id)
