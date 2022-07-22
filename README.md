@@ -1,4 +1,5 @@
 # Legendary
+![Legendary logo - name](https://user-images.githubusercontent.com/34957236/180366885-6dc05647-ff78-483e-abd4-00bb7adbc029.png)
 
 ## Thông tin cơ bản
 
