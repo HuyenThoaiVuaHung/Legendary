@@ -29,7 +29,10 @@ var lastTurnId = '';
 let lastStealingPlayerId = -1;
 var timerActive = false;
 var ifFiveSecActive = false;
+var chpTurnId = -1;
+var chpLastTurnSocketId = '';
 let mainTimer = 0;
+var playedChp = [false, false, false, false];
 var threeSecTimerType = 'N'; // N: No timer, A: Admin, P: Player
 function doTimer(time) {
   timerActive = true;
@@ -40,6 +43,7 @@ function doTimer(time) {
     if (mainTimer <= 0 || timerActive == false) {
       clearInterval(interval);
       io.emit('update-clock', 0);
+      io.emit('lock-button-chp');
       this.threeSecTimerType = 'N';
     }
     else {
@@ -47,7 +51,18 @@ function doTimer(time) {
     }
   }, 1000)
 }
-
+function playPauseTime() {
+  if (timerActive == true) {
+    matchData.pauseTime = mainTimer;
+    timerActive = false;
+    fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
+  }
+  else if (matchData.pauseTime != 0 && timerActive == false) {
+    doTimer(matchData.pauseTime);
+    matchData.pauseTime = 0;
+    fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
+  }
+}
 function sortByTimestamp(a, b) {
   if (a.timestamp < b.timestamp) {
     return -1;
@@ -57,7 +72,30 @@ function sortByTimestamp(a, b) {
   }
   return 0;
 }
+
 io.on('connection', socket => {
+  socket.on('verify-identity', (authID, callback) => {
+    if (playerSecrets.includes(authID)) {
+      callback({
+        roleId: 0
+      });
+    }
+    else if (authID == adminSecret) {
+      callback({
+        roleId: 1
+      });
+    }
+    else if (authID == mcSecret) {
+      callback({
+        roleId: 2
+      });
+    }
+    else {
+      callback({
+        roleId: 3
+      });
+    }
+  })
   socket.on('init-authenticate', (authID, callback) => {
     if (playerSecrets.includes(authID)) {
       // Nguoi choi
@@ -120,11 +158,18 @@ io.on('connection', socket => {
     fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
     socket.broadcast.emit('beginMatch');
   });
-  socket.on('change-match-position', (matchPos) => {
+  socket.on('change-match-position', (matchPos, authID) => {
     if (socket.id == adminId) {
       matchData.matchPos = matchPos;
       fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
       io.emit('update-match-data', matchData);
+    }
+    else if(authID){
+      if(authID == adminSecret){
+        matchData.matchPos = matchPos;
+        fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
+        io.emit('update-match-data', matchData);
+      }
     }
   })
   socket.on('update-data-from-excel', (recievedJSON, callback) => {
@@ -354,17 +399,8 @@ io.on('connection', socket => {
     }, 1000);
 
   })
-  socket.on('play-pause-clock', (time) => {
-    if (matchData.pauseTime == 0 && timerActive == true) {
-      timerActive = false;
-      matchData.pauseTime = time;
-      fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
-    }
-    else if (matchData.pauseTime != 0 && timerActive == false) {
-      doTimer(matchData.pauseTime);
-      matchData.pauseTime = 0;
-      fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
-    }
+  socket.on('play-pause-clock', () => {
+    playPauseTime();
   });
   socket.on('get-kd-data-admin', (callback) => {
     if (adminId == socket.id) {
@@ -548,7 +584,7 @@ io.on('connection', socket => {
     let vcnvData = payload;
     let counter = 0;
     for (let i = 0; i < vcnvData.questions.length; i++) {
-      if(vcnvData.questions[i].ifShown == true){
+      if (vcnvData.questions[i].ifShown == true) {
         counter++;
       }
     }
@@ -570,11 +606,11 @@ io.on('connection', socket => {
     io.emit('update-vcnv-data', vcnvData);
   })
   socket.on('broadcast-vcnv-question', (questionId) => {
-    if (questionId < 6){
+    if (questionId < 6) {
       io.emit('update-vcnv-question', JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath)).questions[questionId - 1]);
     }
     else {
-      io.emit('update-vcnv-question', {question: ''})
+      io.emit('update-vcnv-question', { question: '' })
     }
   })
   socket.on('highlight-vcnv-question', (questionId) => {
@@ -857,8 +893,6 @@ io.on('connection', socket => {
   socket.on('play-sfx', (sfx) => {
     io.emit('play-sfx', sfx);
   });
-  var chpTurnId = -1;
-  var chpLastTurnSocketId = '';
   socket.on('get-chp-data', (callback) => {
     callback(JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).ChpFilePath)));
   })
@@ -867,26 +901,42 @@ io.on('connection', socket => {
     io.emit('update-chp-data', data);
   })
   socket.on('broadcast-chp-question', (id) => {
-    io.emit('unlock-button-chp');
     chpData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).ChpFilePath));
     io.emit('update-chp-question', chpData.questions[id]);
+    playedChp = [false, false, false, false];
+  })
+  socket.on('start-timer-chp', () => {
+    doTimer(15);
+    io.emit('unlock-button-chp');
   })
   socket.on('get-turn-chp', () => {
-    if(chpTurnId == -1){
-      chpLastTurnSocketId = socket.id;
+    if (chpTurnId == -1 && playedChp[socketIDs.indexOf(socket.id)] == false) {
       chpTurnId = socketIDs.indexOf(socket.id);
+      chpLastTurnSocketId = socket.id;
       io.emit('lock-button-chp');
-      io.emit('get-turn-chp', chpTurnId);
+      io.emit('got-turn-chp', chpTurnId);
+      playPauseTime();
     }
   });
   socket.on('mark-correct-chp', () => {
     io.emit('play-sfx', 'VD_CORRECT');
+    matchData.players[chpTurnId].score += 1;
+    io.emit('update-match-data', matchData);
+    chpTurnId = -1;
+    fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
+    io.emit('clear-turn-chp');
   })
   socket.on('mark-wrong-chp', () => {
+    playPauseTime();
     io.emit('play-sfx', 'VD_WRONG');
-    io.to(chpLastTurnSocketId).emit('lock-button-chp');
+    io.emit("unlock-button-chp");
+    io.to(chpLastTurnSocketId).emit('unlock-button-chp');
+    playedChp[chpTurnId] = true;
     chpTurnId = -1;
     chpLastTurnSocketId = '';
+    io.emit('clear-turn-chp');
+  });
+  socket.on('clear-question-chp', () => {
+    io.emit('update-chp-question', {});
   })
-
 });
