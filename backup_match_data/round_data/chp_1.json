@@ -1,0 +1,22 @@
+{
+    "questions": [
+        {
+            "question": "What is the name of the main character in the game?",
+            "answer": "Mario"
+        },
+        {
+            "question": "What is the name of the main character in the game?",
+            "answer": "Mario"
+        },
+        {
+            "question": "What is the name of the main character in the game?",
+            "answer": "Mario"
+        }
+    ],
+    "playerIDs": [
+        false,
+        false,
+        false,
+        false
+    ]
+}
