@@ -45,6 +45,8 @@ function doTimer(time) {
       io.emit('update-clock', 0);
       io.emit('lock-button-chp');
       io.emit('disable-answer-button-kd');
+      io.emit('update-kd-question', '');
+      io.emit('update-kd-question', '');
       this.threeSecTimerType = 'N';
     }
     else {
@@ -788,7 +790,7 @@ io.on('connection', socket => {
       if (lastStealingPlayerId != -1) {
         console.log('Chấm điểm đúng thí sinh cướp câu hỏi ' + id);
         matchData.players[id - 1].score += value;
-        matchData.players[vedichData.currentPlayerId - 1].score -= value;
+        if (!vedichData.ifNSHV) matchData.players[vedichData.currentPlayerId - 1].score -= value;
       }
       else {
         console.log('Chấm điểm đúng thí sinh ' + id)
