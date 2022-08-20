@@ -184,8 +184,8 @@ io.on('connection', socket => {
       let vdData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath));
       let chpData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).ChpFilePath));
       vdData.questions = [];
-      for (let i = 3; i <= 77; i++) {
-        if (recievedJSON.kd[i].__EMPTY) {
+      for (let i = 3; i <= 76; i++) {
+        if (recievedJSON.kd[i].__EMPTY) { 
           let question = {}
           question.question = recievedJSON.kd[i].__EMPTY;
           question.answer = recievedJSON.kd[i].__EMPTY_1;
