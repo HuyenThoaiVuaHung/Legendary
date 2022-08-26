@@ -212,6 +212,7 @@ io.on('connection', socket => {
         vcnvData.questions[i - 3].question = recievedJSON.vcnv[i].__EMPTY;
         vcnvData.questions[i - 3].answer = recievedJSON.vcnv[i].__EMPTY_1;
         vcnvData.questions[i - 3].ifOpen = false;
+        vcnvData.questions[i - 3].ifShown = false;
         if (recievedJSON.vcnv[i].__EMPTY_2) {
           vcnvData.questions[i - 3].audioFilePath = recievedJSON.vcnv[i].__EMPTY_2;
           vcnvData.questions[i - 3].type = 'HN_S';
@@ -227,7 +228,7 @@ io.on('connection', socket => {
         if(recievedJSON.tt[i + 2].__EMPTY && recievedJSON.tt[i + 2].__EMPTY_1){
           ttData.questions[i].question = recievedJSON.tt[i + 2].__EMPTY;
           ttData.questions[i].answer = recievedJSON.tt[i + 2].__EMPTY_1;
-          if (i < 5) {
+          if (i < 3) {
             ttData.questions[i].type = 'TT_IMG';
             ttData.questions[i].question_image = recievedJSON.tt[i + 2].__EMPTY_2;
             if (recievedJSON.tt[i + 2].__EMPTY_3){
@@ -438,7 +439,9 @@ io.on('connection', socket => {
     }
   })
   socket.on('clear-turn-kd', () => {
+    lastTurnId = '';
     io.emit('clear-turn-player-kd');
+    io.emit('enable-answer-button-kd');
   })
   socket.on('correct-mark-kd', () => {
     io.emit('enable-answer-button-kd');
@@ -457,6 +460,10 @@ io.on('connection', socket => {
     io.emit('update-match-data', matchData);
     threeSecTimerType = 'N';
     lastTurnId = '';
+  })
+  socket.on('clear-turn-kd-f', () => {
+    this.lastTurnId = '';
+    io.emit('clear-turn-player-kd');
   })
   /*
   O21 Rules
@@ -531,7 +538,6 @@ io.on('connection', socket => {
         else if (threeSecTimerType != 'A') {
           clearInterval(interval);
           io.emit('update-3s-timer-kd', 0, false)
-          io.emit('clear-turn-player-kd');
         }
       }, 100);
     }
@@ -630,11 +636,13 @@ io.on('connection', socket => {
     vcnvData.showResults = !vcnvData.showResults;
     fs.writeFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath, JSON.stringify(vcnvData));
     io.emit('update-vcnv-data', vcnvData);
+    console.log(vcnvData.showResults)
   })
   socket.on('attempt-cnv-player', () => {
     let timestamp = Date.now();
     let vcnvData = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath));
     let time = new Date(timestamp);
+    vcnvData.disabledPlayers.push(socketIDs.indexOf(socket.id));
     vcnvData.CNVPlayers.push({
       id: socketIDs.indexOf(socket.id),
       timestamp: timestamp,
@@ -790,7 +798,7 @@ io.on('connection', socket => {
       if (lastStealingPlayerId != -1) {
         console.log('Chấm điểm đúng thí sinh cướp câu hỏi ' + id);
         matchData.players[id - 1].score += value;
-        if (!vedichData.ifNSHV) matchData.players[vedichData.currentPlayerId - 1].score -= value;
+        if (!vedichData.ifNSHV)  matchData.players[vedichData.currentPlayerId - 1].score -= value;
       }
       else {
         console.log('Chấm điểm đúng thí sinh ' + id)
