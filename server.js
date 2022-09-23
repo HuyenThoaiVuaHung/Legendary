@@ -45,8 +45,10 @@ function doTimer(time) {
       io.emit('update-clock', 0);
       io.emit('lock-button-chp');
       io.emit('disable-answer-button-kd');
-      io.emit('update-kd-question', '');
-      io.emit('update-kd-question', '');
+      if (matchData.matchPos == 'KD'){
+        io.emit('update-kd-question', '');
+        io.emit('update-kd-question', '');
+      }
       this.threeSecTimerType = 'N';
     }
     else {
@@ -492,7 +494,6 @@ io.on('connection', socket => {
           clearInterval(interval);
           if (mainTimer > 0) {
             io.emit('enable-answer-button-kd');
-            io.emit('next-question');
           }
           lastTurnId = '';
           io.emit('update-3s-timer-kd', 0, true)
