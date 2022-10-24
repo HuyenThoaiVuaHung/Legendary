@@ -27,6 +27,8 @@ var adminId = "";
 var matchData = JSON.parse(fs.readFileSync(matchDataPath));
 var lastTurnId = '';
 let lastStealingPlayerId = -1;
+var kdCurrentMaxQuesNo = 0;
+var kdCurrentQuestionNo = 0;
 var timerActive = false;
 var ifFiveSecActive = false;
 var chpTurnId = -1;
@@ -45,10 +47,6 @@ function doTimer(time) {
       io.emit('update-clock', 0);
       io.emit('lock-button-chp');
       io.emit('disable-answer-button-kd');
-      if (matchData.matchPos == 'KD'){
-        io.emit('update-kd-question', '');
-        io.emit('update-kd-question', '');
-      }
       this.threeSecTimerType = 'N';
     }
     else {
@@ -424,10 +422,7 @@ io.on('connection', socket => {
   })
   socket.on('broadcast-kd-question', (questionId, callback) => {
     socket.broadcast.emit('update-kd-question', JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath)).questions[questionId]);
-    callback({
-      message: '200 OK'
-    });
-  })
+    })
   socket.on('clear-question-kd', () => {
     socket.broadcast.emit('update-kd-question', '');
   })
@@ -447,6 +442,8 @@ io.on('connection', socket => {
   })
   socket.on('correct-mark-kd', () => {
     io.emit('enable-answer-button-kd');
+    kdCurrentQuestionNo++;
+    io.emit('update-number-question-kd', kdCurrentMaxQuesNo, kdCurrentQuestionNo);
     matchData.players[socketIDs.indexOf(lastTurnId)].score += 10;
     fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
     io.emit('update-match-data', matchData);
@@ -458,6 +455,8 @@ io.on('connection', socket => {
     if (matchData.players[socketIDs.indexOf(lastTurnId)].score > 0) {
       matchData.players[socketIDs.indexOf(lastTurnId)].score -= 5;
     }
+    kdCurrentQuestionNo++;
+    io.emit('update-number-question-kd', kdCurrentMaxQuesNo, kdCurrentQuestionNo);
     fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
     io.emit('update-match-data', matchData);
     threeSecTimerType = 'N';
@@ -513,6 +512,8 @@ io.on('connection', socket => {
             io.emit('update-match-data', matchData);
             fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
             io.emit('play-sfx', 'KD_WRONG');
+            kdCurrentQuestionNo++;
+            io.emit('update-number-question-kd', kdCurrentMaxQuesNo, kdCurrentQuestionNo);
           }
           lastTurnId = '';
           io.emit('clear-turn-player-kd');
@@ -533,6 +534,8 @@ io.on('connection', socket => {
           }
           io.emit('clear-turn-player-kd');
           io.emit('play-sfx', 'KD_WRONG');
+          kdCurrentQuestionNo++;
+          io.emit('update-number-question-kd', kdCurrentMaxQuesNo, kdCurrentQuestionNo);
           lastTurnId = '';
           clearInterval(interval);
         }
@@ -546,6 +549,13 @@ io.on('connection', socket => {
   socket.on('stop-3s-timer-kd', () => {
     threeSecTimerType = 'N';
   });
+  socket.on('start-turn-kd', (questionNo) => {
+    kdCurrentQuestionNo = 0;
+    kdCurrentMaxQuesNo = questionNo;
+    io.emit('update-number-question-kd', kdCurrentMaxQuesNo, kdCurrentQuestionNo);
+    io.emit('enable-answer-button-kd');
+    io.emit('update-questions-number-kd', questionNo);
+  })
   socket.on('get-vcnv-data', (callback) => {
     callback(JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath)));
   })
@@ -566,13 +576,13 @@ io.on('connection', socket => {
       }
     }
     switch (counter) {
-      case 0: vcnvData.questions[5].value = 80;
+      case 0: vcnvData.questions[5].value = 50;
         break;
-      case 1: vcnvData.questions[5].value = 80;
+      case 1: vcnvData.questions[5].value = 50;
         break;
-      case 2: vcnvData.questions[5].value = 60;
+      case 2: vcnvData.questions[5].value = 40;
         break;
-      case 3: vcnvData.questions[5].value = 40;
+      case 3: vcnvData.questions[5].value = 30;
         break;
       case 4: vcnvData.questions[5].value = 20;
         break;
