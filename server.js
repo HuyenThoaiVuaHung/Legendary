@@ -440,8 +440,15 @@ io.on("connection", (socket) => {
         JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath,
         JSON.stringify(kd_data)
       );
-      socket.emit("update-kd-data-admin", kd_data);
+      io.emit("update-kd-data-admin", kd_data);
+      io.emit('update-kd-gamemode', gamemode);
     }
+  });
+  socket.on('get-kd-gamemode', (callback) => {
+    callback(JSON.parse(
+      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath)
+    ).gamemode);
+    console.log(callback);
   });
   socket.on("edit-kd-question", (payload, callback) => {
     if (adminId == socket.id) {
@@ -458,7 +465,7 @@ io.on("connection", (socket) => {
         message: "Success",
       });
     }
-  });
+  })
   socket.on("edit-player-info", (payload, callback) => {
     if (adminId == socket.id) {
       matchData.players[payload.index] = payload.player;
