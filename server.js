@@ -548,6 +548,9 @@ io.on("connection", (socket) => {
     threeSecTimerType = "N";
     lastTurnId = "";
   });
+  socket.on('stop-kd-sound', () => {
+    io.emit('stop-kd-sound');
+  })
   socket.on("clear-turn-kd-f", () => {
     this.lastTurnId = "";
     io.emit("clear-turn-player-kd");
