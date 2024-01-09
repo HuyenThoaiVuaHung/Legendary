@@ -169,6 +169,9 @@ io.on("connection", (socket) => {
       }
     }
   });
+  socket.on('get-match-position', (callback) => {
+    callback(matchData.matchPos);
+  });
   socket.on("update-data-from-excel", (recievedJSON, callback) => {
     if (socket.id == adminId) {
       let kdData = JSON.parse(
@@ -421,6 +424,7 @@ io.on("connection", (socket) => {
   });
   socket.on("get-kd-data-admin", (callback) => {
     if (adminId == socket.id) {
+      console.log("Admin " + socket.id + " requested KD data");
       callback(
         JSON.parse(
           fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath)
