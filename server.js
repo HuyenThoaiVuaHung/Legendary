@@ -1,11 +1,25 @@
+/**
+ * The server.js file contains the implementation of a socket.io server.
+ * It initializes the server, handles socket connections, and defines various event listeners.
+ * The server supports authentication, updating match data, changing match positions, and more.
+ * It also includes functions for managing timers, sorting data, and censoring match data.
+ * @module server
+ * @requires fs
+
+ */
 const fs = require("fs");
+/**
+ * @requires socket.io
+ * @type socket.io
+ */
 const io = require("socket.io")(3000, {
   cors: {
     origin: "*",
   },
 });
+const log = require("./logger.js").log;
 
-console.log("Server khởi động thành công, đang chờ kết nối mới..");
+log("Server khởi động thành công, đang chờ kết nối mới..");
 // Nhập mã bí mật ở đây
 var playerSecrets = ["123", "234", "345", "456"];
 var adminSecret = "BTC";
@@ -65,66 +79,59 @@ function sortByTimestamp(a, b) {
   }
   return 0;
 }
+function censorMatchData(matchData) {
+  let temp = matchData;
 
+  return temp;
+}
 io.on("connection", (socket) => {
-  io.to(socket.id).emit("reauthenticate");
   socket.on("verify-identity", (authID, callback) => {
     if (playerSecrets.includes(authID)) {
-      callback({
-        roleId: 0,
-      });
+      callback(0);
     } else if (authID == adminSecret) {
-      callback({
-        roleId: 1,
-      });
+      callback(1);
     } else if (authID == mcSecret) {
-      callback({
-        roleId: 2,
-      });
+      callback(2);
     } else {
-      callback({
-        roleId: 3,
-      });
+      callback(3);
     }
   });
   socket.on("init-authenticate", (authID, callback) => {
     if (playerSecrets.includes(authID)) {
       // Nguoi choi
       matchData.players[playerSecrets.indexOf(authID)].isReady = true;
-      curAuthID = authID;
       socketIDs[playerSecrets.indexOf(authID)] = socket.id;
       fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
-      console.log(
+      log(
         "Player " +
           matchData.players[playerSecrets.indexOf(authID)].name +
           " connected at " +
           socket.id
       );
       io.emit("update-match-data", matchData);
-      callback({
+      io.to(socket.id).emit("authentication", censorMatchData(matchData), {
+        socketId: socket.id,
         roleId: 0,
-        matchData: matchData,
-        player: matchData.players[playerSecrets.indexOf(authID)],
-        playerIndex: playerSecrets.indexOf(authID),
+        index: playerSecrets.indexOf(authID),
       });
     } else if (authID == adminSecret) {
       // Admin
-      console.log("Admin connected at " + socket.id);
+      log("Admin connected at " + socket.id);
       adminId = socket.id;
-      callback({
+      io.to(socket.id).emit("authentication", matchData, {
+        socketId: socket.id,
         roleId: 1,
-        matchData: matchData,
       });
     } else if (authID == mcSecret) {
       // MC
-      console.log("MC connected at " + socket.id);
+      log("MC connected at " + socket.id);
       callback({
         roleId: 2,
         matchData: matchData,
       });
     } else {
       // Viewer
-      console.log("Viewer connected at " + socket.id);
+      log("Viewer connected at " + socket.id);
       callback({
         roleId: 3,
         matchData: matchData,
@@ -133,18 +140,19 @@ io.on("connection", (socket) => {
       });
     }
   });
+  //Todo: write authenticated emitter and emit the unnecessary info from being emitted
   socket.on("get-match-data", (callback) => {
     if (callback) {
-      callback(matchData);
+      callback(censorMatchData(matchData));
     }
   });
   socket.on("disconnect", () => {
     if (socketIDs.includes(socket.id)) {
-      console.log(
+      log(
         "Player " +
           matchData.players[socketIDs.indexOf(socket.id)].name +
           " disconnected at " +
-          socket.id
+          socket.id, 1
       );
       matchData.players[socketIDs.indexOf(socket.id)].isReady = false;
       fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
@@ -169,7 +177,7 @@ io.on("connection", (socket) => {
       }
     }
   });
-  socket.on('get-match-position', (callback) => {
+  socket.on("get-match-position", (callback) => {
     callback(matchData.matchPos);
   });
   socket.on("update-data-from-excel", (recievedJSON, callback) => {
@@ -243,7 +251,7 @@ io.on("connection", (socket) => {
         JSON.stringify(kdData)
       );
       io.emit("update-kd-data-admin", kdData);
-      console.log("Hoàn thành nhập đề KD");
+      log("Hoàn thành nhập đề KD");
       vcnvData.questions[5].answer = recievedJSON.vcnv[1].__EMPTY;
       vcnvData.questions[5].picFileName = recievedJSON.vcnv[1].__EMPTY_2;
       for (let i = 3; i <= 7; i++) {
@@ -264,7 +272,7 @@ io.on("connection", (socket) => {
         JSON.stringify(vcnvData)
       );
       io.emit("update-vcnv-data", vcnvData);
-      console.log("Hoàn thành nhập đề VCNV");
+      log("Hoàn thành nhập đề VCNV");
       for (let i = 0; i <= 3; i++) {
         if (
           recievedJSON.tt[i + 2].__EMPTY &&
@@ -292,7 +300,7 @@ io.on("connection", (socket) => {
         JSON.stringify(ttData)
       );
       io.emit("update-tangtoc-data", ttData);
-      console.log("Hoàn thành nhập đề tăng tốc");
+      log("Hoàn thành nhập đề tăng tốc");
       for (let i = 3; i <= 8; i++) {
         vdData.questionPools[0][i - 3].question = recievedJSON.vd[i].__EMPTY;
         vdData.questionPools[0][i - 3].answer = recievedJSON.vd[i].__EMPTY_1;
@@ -405,8 +413,8 @@ io.on("connection", (socket) => {
         JSON.stringify(chpData)
       );
       io.emit("update-chp-data", chpData);
-      console.log("Hoàn thành nhập đề Về đích & CHP");
-      console.log("Hoàn thành nhập từ file excel");
+      log("Hoàn thành nhập đề Về đích & CHP");
+      log("Hoàn thành nhập từ file excel");
     }
   });
   socket.on("start-clock", (time) => {
@@ -424,7 +432,6 @@ io.on("connection", (socket) => {
   });
   socket.on("get-kd-data-admin", (callback) => {
     if (adminId == socket.id) {
-      console.log("Admin " + socket.id + " requested KD data");
       callback(
         JSON.parse(
           fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath)
@@ -445,14 +452,16 @@ io.on("connection", (socket) => {
         JSON.stringify(kd_data)
       );
       io.emit("update-kd-data-admin", kd_data);
-      io.emit('update-kd-gamemode', gamemode);
+      io.emit("update-kd-gamemode", gamemode);
     }
   });
-  socket.on('get-kd-gamemode', (callback) => {
-    callback(JSON.parse(
-      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath)
-    ).gamemode);
-    console.log(callback);
+  socket.on("get-kd-gamemode", (callback) => {
+    callback(
+      JSON.parse(
+        fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath)
+      ).gamemode
+    );
+    log(callback);
   });
   socket.on("edit-kd-question", (payload, callback) => {
     if (adminId == socket.id) {
@@ -469,7 +478,7 @@ io.on("connection", (socket) => {
         message: "Success",
       });
     }
-  })
+  });
   socket.on("edit-player-info", (payload, callback) => {
     if (adminId == socket.id) {
       matchData.players[payload.index] = payload.player;
@@ -497,6 +506,7 @@ io.on("connection", (socket) => {
         "player-got-turn-kd",
         matchData.players[socketIDs.indexOf(socket.id)]
       );
+      log("Player " + socketIDs.indexOf(socket.id) + " requested turn", 0);
     }
   });
   socket.on("change-singleplayer-kd-turn", (playerId) => {
@@ -559,9 +569,9 @@ io.on("connection", (socket) => {
     threeSecTimerType = "N";
     lastTurnId = "";
   });
-  socket.on('stop-kd-sound', () => {
-    io.emit('stop-kd-sound');
-  })
+  socket.on("stop-kd-sound", () => {
+    io.emit("stop-kd-sound");
+  });
   socket.on("clear-turn-kd-f", () => {
     this.lastTurnId = "";
     io.emit("clear-turn-player-kd");
@@ -574,7 +584,7 @@ io.on("connection", (socket) => {
       io.emit('enable-answer-button-kd');
     }
     if (ifPlayer == true) {
-      console.log(lastTurnId)
+      log(lastTurnId)
       io.to(lastTurnId).emit('disable-answer-button-kd');
     }
     threeSecTimerType = 'N';
@@ -808,7 +818,7 @@ io.on("connection", (socket) => {
       JSON.stringify(vcnvData)
     );
     io.emit("update-vcnv-data", vcnvData);
-    console.log(vcnvData.showResults);
+    log(vcnvData.showResults);
   });
   socket.on("attempt-cnv-player", () => {
     let timestamp = Date.now();
@@ -1052,22 +1062,22 @@ io.on("connection", (socket) => {
     }
   });
   socket.on("mark-correct-vd", (id, value) => {
-    console.log("Chấm cho ts: " + id);
+    log("Chấm cho ts: " + id);
     let vedichData = JSON.parse(
       fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath)
     );
     if (vedichData.ifNSHV == true && lastStealingPlayerId == -1) {
-      console.log("Chấm điểm nshv cho thí sinh + " + id);
+      log("Chấm điểm nshv cho thí sinh + " + id);
       matchData.players[id - 1].score += value * 2;
       vedichData.ifNSHV = false;
     } else {
       if (lastStealingPlayerId != -1) {
-        console.log("Chấm điểm đúng thí sinh cướp câu hỏi " + id);
+        log("Chấm điểm đúng thí sinh cướp câu hỏi " + id);
         matchData.players[id - 1].score += value;
         if (!vedichData.ifNSHV)
           matchData.players[vedichData.currentPlayerId - 1].score -= value;
       } else {
-        console.log("Chấm điểm đúng thí sinh " + id);
+        log("Chấm điểm đúng thí sinh " + id);
         matchData.players[id - 1].score += value;
       }
     }
@@ -1083,7 +1093,7 @@ io.on("connection", (socket) => {
     io.emit("clear-stealing-player");
   });
   socket.on("mark-incorrect-vd", (id, value) => {
-    console.log("Chấm sai cho thí sinh " + id);
+    log("Chấm sai cho thí sinh " + id);
     matchData.players[id - 1].score -= value / 2;
     lastStealingPlayerId = -1;
     let vedichData = JSON.parse(
@@ -1100,7 +1110,7 @@ io.on("connection", (socket) => {
   });
   socket.on("player-steal-question", () => {
     if (lastStealingPlayerId == -1) {
-      console.log("Cướp câu hỏi");
+      log("Cướp câu hỏi");
       io.emit("lock-button-vd");
       lastStealingPlayerId = socketIDs.indexOf(socket.id);
       ifFiveSecActive = false;
