@@ -17,9 +17,17 @@ const io = require("socket.io")(3000, {
     origin: "*",
   },
 });
+const config = require("./config.json");
 const log = require("./logger.js").log;
-
+const date = new Date();
 log("Server khởi động thành công, đang chờ kết nối mới..");
+if (config.saveLog)
+  log(
+    "Diễn biến của máy chủ sẽ được ghi lại tại " +
+      `/logs/${
+        date.getDate() + "." + (date.getMonth() + 1) + "." + date.getFullYear()
+      }.txt`
+  );
 // Nhập mã bí mật ở đây
 var playerSecrets = ["123", "234", "345", "456"];
 var adminSecret = "BTC";
@@ -152,7 +160,8 @@ io.on("connection", (socket) => {
         "Player " +
           matchData.players[socketIDs.indexOf(socket.id)].name +
           " disconnected at " +
-          socket.id, 1
+          socket.id,
+        1
       );
       matchData.players[socketIDs.indexOf(socket.id)].isReady = false;
       fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
@@ -461,7 +470,6 @@ io.on("connection", (socket) => {
         fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath)
       ).gamemode
     );
-    log(callback);
   });
   socket.on("edit-kd-question", (payload, callback) => {
     if (adminId == socket.id) {
@@ -538,10 +546,22 @@ io.on("connection", (socket) => {
       kdCurrentMaxQuesNo,
       kdCurrentQuestionNo
     );
-    if (lastTurnId && kdData.gamemode == "M")
+    if (lastTurnId && kdData.gamemode == "M") {
       matchData.players[socketIDs.indexOf(lastTurnId)].score += 10;
-    else if (kdData.gamemode == "S") {
+      log(
+        "Player " +
+          matchData.players[socketIDs.indexOf(lastTurnId)].name +
+          " got 10 points",
+        0
+      );
+    } else if (kdData.gamemode == "S") {
       matchData.players[kdData.currentSingleplayerPlayer].score += 10;
+      log(
+        "Player " +
+          matchData.players[kdData.currentSingleplayerPlayer].name +
+          " got 10 points",
+        0
+      );
     }
     fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
     io.emit("update-match-data", matchData);
@@ -555,8 +575,15 @@ io.on("connection", (socket) => {
         fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath)
       );
       kdCurrentQuestionNo++;
-      if (kdData.gamemode == "M")
+      if (kdData.gamemode == "M") {
         matchData.players[socketIDs.indexOf(lastTurnId)].score -= 5;
+        log(
+          "Player " +
+            matchData.players[socketIDs.indexOf(lastTurnId)].name +
+            " lost 5 points",
+          0
+        );
+      }
     }
     kdCurrentQuestionNo++;
     io.emit(
@@ -617,6 +644,12 @@ io.on("connection", (socket) => {
             threeSecTimerType = "N";
             if (matchData.players[socketIDs.indexOf(lastTurnId)].score > 0) {
               matchData.players[socketIDs.indexOf(lastTurnId)].score -= 5;
+              log(
+                "Player " +
+                  matchData.players[socketIDs.indexOf(lastTurnId)].name +
+                  " lost 5 points",
+                0
+              );
             }
             io.emit("update-match-data", matchData);
             fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
@@ -686,6 +719,7 @@ io.on("connection", (socket) => {
     for (let i = 0; i <= payload.length; i++) {
       if (payload[i] == true) {
         matchData.players[i].score += 10;
+        log("Player " + matchData.players[i].name + " got 10 points", 0);
       }
       io.emit("update-match-data", matchData);
     }
@@ -799,6 +833,7 @@ io.on("connection", (socket) => {
     for (let i = 0; i <= 3; i++) {
       if (payload[i].correct == true) {
         matchData.players[i].score += 10;
+        log("Player " + matchData.players[i].name + " got 10 points", 0);
       }
     }
     io.emit("update-match-data", matchData);
@@ -854,6 +889,12 @@ io.on("connection", (socket) => {
       if (vcnvMark[i] != null) {
         if (vcnvMark[i] == true) {
           matchData.players[i].score += vcnvData.questions[5].value;
+          log(
+            "Player " +
+              matchData.players[i].name +
+              `got ${vcnvData.questions[5].value} points`,
+            0
+          );
         } else {
           vcnvData.disabledPlayers.push(i);
         }
@@ -934,6 +975,12 @@ io.on("connection", (socket) => {
     for (let i = 0; i <= 3; i++) {
       if (markData[i].correct == true) {
         matchData.players[markData[i].id - 1].score += markCounter * 10;
+        log(
+          "Player " +
+            matchData.players[markData[i].id - 1].name +
+            ` got ${markCounter * 10} points`,
+          0
+        );
         markCounter--;
       }
     }
@@ -1069,16 +1116,28 @@ io.on("connection", (socket) => {
     if (vedichData.ifNSHV == true && lastStealingPlayerId == -1) {
       log("Chấm điểm nshv cho thí sinh + " + id);
       matchData.players[id - 1].score += value * 2;
+      log(
+        "Player " + matchData.players[id-1].name + ` got ${value * 2} points`,
+        0
+      );
+
       vedichData.ifNSHV = false;
     } else {
       if (lastStealingPlayerId != -1) {
         log("Chấm điểm đúng thí sinh cướp câu hỏi " + id);
         matchData.players[id - 1].score += value;
-        if (!vedichData.ifNSHV)
+        log("Player " + matchData.players[id-1].name + ` got ${value} points`, 0);
+        if (!vedichData.ifNSHV) {
           matchData.players[vedichData.currentPlayerId - 1].score -= value;
+          log(
+            "Player " + matchData.players[vedichData.currentPlayerId - 1].name + ` lost ${value} points`,
+            0
+          );
+        }
       } else {
         log("Chấm điểm đúng thí sinh " + id);
         matchData.players[id - 1].score += value;
+        log("Player " + matchData.players[id-1].name + ` got ${value} points`, 0);
       }
     }
     vedichData.ifNSHV = false;
@@ -1095,6 +1154,10 @@ io.on("connection", (socket) => {
   socket.on("mark-incorrect-vd", (id, value) => {
     log("Chấm sai cho thí sinh " + id);
     matchData.players[id - 1].score -= value / 2;
+    log(
+      "Player " + matchData.players[id - 1].name + ` lost ${value / 2} points`,
+      0
+    );
     lastStealingPlayerId = -1;
     let vedichData = JSON.parse(
       fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath)
@@ -1130,6 +1193,13 @@ io.on("connection", (socket) => {
     if (vdData.ifNSHV == true) {
       matchData.players[vdData.currentPlayerId - 1].score -=
         currentVdQuestion.value;
+      log(
+        "Player " +
+          matchData.players[vdData.currentPlayerId - 1].name +
+          ` lost ${currentVdQuestion.value} points`,
+        0
+      );
+
       fs.writeFileSync(
         JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath,
         JSON.stringify(vdData)
