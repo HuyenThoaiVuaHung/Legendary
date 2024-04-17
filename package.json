@@ -10,8 +10,10 @@
   "license": "ISC",
   "dependencies": {
     "@socket.io/admin-ui": "^0.2.0",
+    "cors": "^2.8.5",
     "crypto-js": "^4.1.1",
     "cryptojs": "^2.5.3",
+    "express": "^4.19.2",
     "server": "^0.0.3",
     "serverjs": "^0.1.0",
     "socket.io": "^4.4.0"

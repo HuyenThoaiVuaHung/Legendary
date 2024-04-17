@@ -12,14 +12,30 @@ const fs = require("fs");
  * @requires socket.io
  * @type socket.io
  */
-const io = require("socket.io")(3000, {
+const { createServer } = require("http");
+const { Server } = require("socket.io");
+const cors = require("cors");
+const express = require("express");
+
+const app = express();
+app.use(cors(
+  {
+      origin: '*'
+  }
+))
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
   cors: {
-    origin: "*",
-  },
-});
+      origin: '*'
+  }
+})
+
 const config = require("./config.json");
 const log = require("./logger.js").log;
 const date = new Date();
+
+
+httpServer.listen(3000);
 log("Server khởi động thành công, đang chờ kết nối mới..");
 if (config.saveLog)
   log(
