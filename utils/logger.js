@@ -3,7 +3,7 @@
  * @param {string} message - The message to be logged.
  * @param {number} [type=0] - The type of the log. 0 for info, 1 for warn, 2 for error.
  */
-let config = require("./config.json");
+let config = require("../config.json");
 const log = (message, type = 0) => {
   let logType;
   switch (type) {

@@ -31,11 +31,11 @@ const io = new Server(httpServer, {
 })
 
 const config = require("./config.json");
-const log = require("./logger.js").log;
+const log = require("./utils/logger.js").log;
 const date = new Date();
 
 
-httpServer.listen(3000);
+httpServer.listen(80);
 log("Server khởi động thành công, đang chờ kết nối mới..");
 if (config.saveLog)
   log(
