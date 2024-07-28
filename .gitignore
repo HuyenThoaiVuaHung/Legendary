@@ -41,6 +41,9 @@ build/Release
 node_modules/
 jspm_packages/
 
+# User-generated data
+data
+
 # TypeScript v1 declaration files
 typings/
 
