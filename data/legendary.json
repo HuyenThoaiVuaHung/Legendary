@@ -1,0 +1,9 @@
+{
+  "state": 1,
+  "ifSaveLog": false,
+  "trustedDomain": "*",
+  "mediaPath": "/static/protected",
+  "dataPath": "/data",
+  "configFileName": "config.json",
+  "serverPort": 3000
+}

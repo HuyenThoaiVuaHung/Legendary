@@ -1,0 +1,32 @@
+[
+    {
+        "name": "John Doe",
+        "authHash": "x",
+        "role": 0,
+        "socketId": "x"
+    },
+    {
+        "name": "John Doe",
+        "authHash": "x",
+        "role": 0,
+        "socketId": "x"
+    },
+    {
+        "name": "John Doe",
+        "authHash": "x",
+        "role": 0,
+        "socketId": "x"
+    },
+    {
+        "name": "John Doe",
+        "authHash": "x",
+        "role": 0,
+        "socketId": "x"
+    },
+    {
+        "name": "John Doe",
+        "authHash": "x",
+        "role": 1,
+        "socketId": "x"
+    }
+]
