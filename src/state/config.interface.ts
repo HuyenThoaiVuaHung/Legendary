@@ -1,4 +1,5 @@
 import { User } from "../authentication/auth.interface.ts";
+import { IMatchData } from "../game/interfaces/game.interface.ts";
 
 export enum State {
     UNINITIALIZED,
@@ -14,5 +15,8 @@ export interface LegendaryConfig {
     dataPath: string,
     configFileName: string,
     serverPort: number,
-    users?: User[]
+}
+
+export interface MatchData extends IMatchData {
+    secureUsers: User[];
 }

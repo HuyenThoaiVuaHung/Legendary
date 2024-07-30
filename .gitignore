@@ -43,6 +43,10 @@ jspm_packages/
 
 # User-generated data
 data
+static
+
+# Test resources
+tests/resources
 
 # TypeScript v1 declaration files
 typings/

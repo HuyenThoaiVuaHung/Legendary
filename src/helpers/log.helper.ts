@@ -14,7 +14,7 @@ export class LogHelper {
 
     static warn(message: string) {
         if (LogHelper.level <= Level.VERBOSE) {
-            console.log(`[VERBOSE] ${message}`);
+            console.log(`[WARN] ${message}`);
         }
     }
 

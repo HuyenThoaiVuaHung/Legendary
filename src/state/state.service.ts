@@ -9,13 +9,14 @@ export class StateService {
     ifSaveLog: false,
     ...environment,
   });
-
+  
   constructor() {
     this.initAsync();
   }
 
   private async initAsync() {
     this.config.set(await bootstrap());
+
   }
 
   public updateState(state: State): void {

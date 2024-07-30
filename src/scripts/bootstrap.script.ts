@@ -1,6 +1,6 @@
 import { LegendaryConfig, State } from "../state/config.interface.ts";
-import { LogHelper } from "../misc/log.helper.ts";
-import { IOHelper } from "./../misc/io.helper.ts";
+import { LogHelper } from "../helpers/log.helper.ts";
+import { IOHelper } from "../helpers/io.helper.ts";
 import { environment } from "../../environment.ts";
 
 export async function bootstrap(): Promise<LegendaryConfig> {
@@ -8,14 +8,15 @@ export async function bootstrap(): Promise<LegendaryConfig> {
   if (!(await IOHelper.ifFileExists("data/legendary.json"))) {
     try {
       await Deno.mkdir("data");
+    } catch (_err) {
+      LogHelper.log("Data folder already exists, skipping...");
     }
-    catch (_err){}
     const configFile = await Deno.createSync("data/legendary.json");
 
     const emptyConfig: LegendaryConfig = {
       state: State.EMPTY,
       ifSaveLog: false,
-      ...environment
+      ...environment,
     };
     configFile.writeSync(new TextEncoder().encode(JSON.stringify(emptyConfig)));
     configFile.close();
@@ -26,8 +27,7 @@ export async function bootstrap(): Promise<LegendaryConfig> {
       "Legendary config file found, continuing with previous data!"
     );
   try {
-    await Deno.mkdir("static");
-    await Deno.mkdir("static/protected");
+    await Deno.mkdir("static/protected", { recursive: true });
   } catch (err) {
     if (!(err instanceof Deno.errors.AlreadyExists)) {
       LogHelper.log("Static files already exists, skipping...");

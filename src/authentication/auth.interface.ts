@@ -15,8 +15,7 @@ export interface AuthRequest {
 export interface User {
     authHash: string;
     role: Role;
-    socketId: string;
-    data?: IPlayer; 
+    data?: IPlayer;
 }
 
 export enum Role {

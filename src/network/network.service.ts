@@ -2,7 +2,9 @@ import { Server } from "socket.io";
 import { StateService } from "../state/state.service.ts";
 import { AuthenticationService } from "../authentication/auth.service.ts";
 import { initializeDefaultNamespace } from "./namespaces/default.namespace.ts";
-import { LogHelper } from "../misc/log.helper.ts";
+import { LogHelper } from "../helpers/log.helper.ts";
+import { serve } from "https://deno.land/std/http/mod.ts";
+import { lookup } from "https://deno.land/x/media_types/mod.ts";
 
 export class NetworkService {
   public readonly io: Server;

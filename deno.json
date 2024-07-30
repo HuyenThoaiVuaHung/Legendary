@@ -1,4 +1,7 @@
-{"tasks": {
+{
+  "tasks": {
     "start": "deno run --allow-net --allow-read server.ts",
-    "dev": ""
-}}
+    "dev": "deno run -A --watch=data/,src/,index.ts index.ts",
+    "test": "cd tests && deno test -A"
+  }
+}
