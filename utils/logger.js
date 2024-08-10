@@ -3,8 +3,8 @@
  * @param {string} message - The message to be logged.
  * @param {number} [type=0] - The type of the log. 0 for info, 1 for warn, 2 for error.
  */
-let config = require("./config.json");
-const log = (message, type = 0) => {
+const config = require("./config.json");
+function log(message, type = 0) {
   let logType;
   switch (type) {
     case 0:
@@ -24,6 +24,26 @@ const log = (message, type = 0) => {
   console.log(
     logType,
     date.getDate() +
+    "/" +
+    (date.getMonth() + 1) +
+    "/" +
+    date.getFullYear() +
+    " @ " +
+    date.getHours() +
+    ":" +
+    date.getMinutes() +
+    ":" +
+    date.getSeconds(),
+    message
+  );
+  if (config.saveLog) {
+    let fs = require("fs");
+    fs.appendFile(
+      `./logs/${date.getDate() + "." + (date.getMonth() + 1) + "." + date.getFullYear()
+      }.txt`,
+      logType +
+      " " +
+      date.getDate() +
       "/" +
       (date.getMonth() + 1) +
       "/" +
@@ -33,35 +53,14 @@ const log = (message, type = 0) => {
       ":" +
       date.getMinutes() +
       ":" +
-      date.getSeconds(),
-    message
-  );
-  if (config.saveLog) {
-    let fs = require("fs");
-    fs.appendFile(
-      `./logs/${
-        date.getDate() + "." + (date.getMonth() + 1) + "." + date.getFullYear()
-      }.txt`,
-      logType +
-        " " +
-        date.getDate() +
-        "/" +
-        (date.getMonth() + 1) +
-        "/" +
-        date.getFullYear() +
-        " @ " +
-        date.getHours() +
-        ":" +
-        date.getMinutes() +
-        ":" +
-        date.getSeconds() +
-        " " +
-        message +
-        "\n",
+      date.getSeconds() +
+      " " +
+      message +
+      "\n",
       function (err) {
         if (err) throw err;
       }
     );
   }
 };
-module.exports = { log };
+module.exports = { log }

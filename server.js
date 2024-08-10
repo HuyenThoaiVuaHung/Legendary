@@ -1,27 +1,36 @@
-/**
- * The server.js file contains the implementation of a socket.io server.
- * It initializes the server, handles socket connections, and defines various event listeners.
- * The server supports authentication, updating match data, changing match positions, and more.
- * It also includes functions for managing timers, sorting data, and censoring match data.
- * @module server
- * @requires fs
-
- */
+const { Server } = require('socket.io');
+const express = require('express');
+const { createServer } = require('http');
+const log = require("./utils/logger.js").log;
+const cors = require('cors');
 const fs = require("fs");
-/**
- * @requires socket.io
- * @type socket.io
- */
-const io = require("socket.io")(3000, {
+const { join } = require('path');
+const config = require("./utils/config.json");
+const compression = require('compression');
+const app = express();
+const os = require('os');
+app.use(cors(
+  {
+    origin: ['*']
+  }
+));
+
+const server = createServer(app);
+const io = new Server(server, {
   cors: {
-    origin: "*",
-  },
+    origin: "*"
+  }
 });
-const config = require("./config.json");
-const excelHandler = require("./excelHandler.js");
-const log = require("./logger.js").log;
+
+app.use(compression());
+app.use(express.static(join(__dirname, 'Legion')))
+app.use('*', (_req, res) => {
+
+  res.sendFile(join(__dirname, 'Legion', 'index.html'));
+});
+
+
 const date = new Date();
-log("Server khởi động thành công, đang chờ kết nối mới..");
 if (config.saveLog)
   log(
     "Diễn biến của máy chủ sẽ được ghi lại tại " +
@@ -185,10 +194,11 @@ io.on("connection", (socket) => {
   socket.on("get-match-position", (callback) => {
     callback(matchData.matchPos);
   });
-  socket.on("update-data-from-excel", (recievedJSON, callback) => {
+  socket.on("update-data-from-excel", async (recievedJSON, callback) => {
     if (socket.id == adminId) {
       try {
-        [kdData, vcnvData, ttData, vdData, chpData] = excelHandler.readExcel(recievedJSON, matchDataPath);
+        const excelHandler = await import("./utils/excelHandler.mjs");
+        let [kdData, vcnvData, ttData, vdData, chpData] = excelHandler.default(recievedJSON, matchDataPath);
         io.emit("update-kd-data-admin", kdData);
         io.emit("update-vcnv-data", vcnvData);
         io.emit("update-tangtoc-data", ttData);
@@ -999,6 +1009,11 @@ io.on("connection", (socket) => {
       io.emit("player-steal-question", socketIDs.indexOf(socket.id));
     }
   });
+  socket.on('reset-stealing-player', () => {
+    lastStealingPlayerId = -1;
+    io.emit("clear-stealing-player");
+
+  });
   socket.on("vd-play-video", () => {
     io.emit("vd-play-video");
   });
@@ -1064,7 +1079,7 @@ io.on("connection", (socket) => {
     io.emit("update-chp-data", data);
   });
   socket.on("broadcast-chp-question", (id) => {
-    chpData = JSON.parse(
+    const chpData = JSON.parse(
       fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).ChpFilePath)
     );
     io.emit("update-chp-question", chpData.questions[id]);
@@ -1104,4 +1119,20 @@ io.on("connection", (socket) => {
   socket.on("clear-question-chp", () => {
     io.emit("update-chp-question", {});
   });
+});
+
+server.listen(80, () => {
+  log('Server Legion khởi động thành công.', 0);
+  log("Server Legendary khởi động thành công, đang chờ kết nối mới..");
+
+  const nets = os.networkInterfaces();
+
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name]) {
+      if (net.family === 'IPv4' && !net.internal) {
+        log('Địa chỉ IP của máy chủ: http://' + net.address, 1);
+      }
+    }
+  }
+  log("Không cần hai chấm gì đâu nhé ;)", 0);
 });
