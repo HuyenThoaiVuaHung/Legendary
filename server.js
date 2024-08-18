@@ -354,19 +354,7 @@ io.on("connection", (socket) => {
       kdCurrentMaxQuesNo,
       kdCurrentQuestionNo
     );
-    if (!socketIDs.includes(lastTurnId)) {
-      log("Player " + lastTurnId + " is not in the list", 2);
-      return;
-    }
-    if (lastTurnId && kdData.gamemode == "M") {
-      matchData.players[socketIDs.indexOf(lastTurnId)].score += 10;
-      log(
-        "Player " +
-        matchData.players[socketIDs.indexOf(lastTurnId)].name +
-        " got 10 points",
-        0
-      );
-    } else if (kdData.gamemode == "S") {
+    if (kdData.gamemode == "S") {
       matchData.players[kdData.currentSingleplayerPlayer].score += 10;
       log(
         "Player " +
@@ -375,6 +363,20 @@ io.on("connection", (socket) => {
         0
       );
     }
+    else if (lastTurnId && kdData.gamemode == "M") {
+      if (!socketIDs.includes(lastTurnId)) {
+        log("Player " + lastTurnId + " is not in the list", 2);
+        return;
+      }
+      matchData.players[socketIDs.indexOf(lastTurnId)].score += 10;
+      log(
+        "Player " +
+        matchData.players[socketIDs.indexOf(lastTurnId)].name +
+        " got 10 points",
+        0
+      );
+    }
+
     fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
     io.emit("update-match-data", matchData);
     threeSecTimerType = "N";
@@ -382,15 +384,15 @@ io.on("connection", (socket) => {
   });
   socket.on("wrong-mark-kd", () => {
     io.emit("enable-answer-button-kd");
-    if (!socketIDs.includes(lastTurnId)) {
-      log("Player " + lastTurnId + " is not in the list", 2);
-      return;
-    }
-    if (matchData.players[socketIDs.indexOf(lastTurnId)].score > 0) {
-      var kdData = JSON.parse(
-        fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath)
-      );
-      if (kdData.gamemode == "M") {
+    var kdData = JSON.parse(
+      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath)
+    );
+    if (kdData.gamemode == "M") {
+      if (!socketIDs.includes(lastTurnId)) {
+        log("Player " + lastTurnId + " is not in the list", 2);
+        return;
+      }
+      else if (matchData.players[socketIDs.indexOf(lastTurnId)].score > 0) {
         matchData.players[socketIDs.indexOf(lastTurnId)].score -= 5;
         log(
           "Player " +
@@ -434,6 +436,11 @@ io.on("connection", (socket) => {
     lastTurnId = '';
   })
   */
+  socket.on('update-number-question-kd', (maxQuesNo, currentQuesNo) => {
+    kdCurrentMaxQuesNo = maxQuesNo;
+    kdCurrentQuestionNo = currentQuesNo;
+    io.emit('update-number-question-kd', kdCurrentMaxQuesNo, kdCurrentQuestionNo);
+  })
   socket.on("start-3s-timer-kd", (ifPlayer) => {
 
     if (ifPlayer) {
@@ -1094,6 +1101,7 @@ io.on("connection", (socket) => {
       chpTurnId = socketIDs.indexOf(socket.id);
       chpLastTurnSocketId = socket.id;
       io.emit("lock-button-chp");
+      io.emit("play-sfx", "KD_GET_TURN");
       io.emit("got-turn-chp", chpTurnId);
       playPauseTime();
     }
