@@ -1,1 +1,65 @@
-{"questions":[{"id":1,"question":"(11) Lê Tư Thành hay Lê Hạo là tên húy ủa vị vua nào?","answer":"Lê Thánh Tông","type":"HN","value":10,"ifOpen":false},{"id":2,"question":"Hầu hết các đồng vị có số hiệu nguyên tố lớn hơn hoặc bằng bao nhiêu là đồng vị không bền?","answer":"82","type":"HN","value":10,"audioFileName":"1.mp3","ifOpen":false,"audioFilePath":"1.mp3"},{"id":3,"question":"Số nào sau đây chia hết cho 7: 1480, 1481, 1482, 1483, 1484, 1485?","answer":"1484","type":"HN","value":10,"ifOpen":false},{"id":4,"question":"Các di sản thế giới được công nhận bởi tổ chức nào?","answer":"UNESCO","type":"HN","value":10,"ifOpen":false},{"id":5,"question":"Công trình nào được xây dựng để dạy học và thờ kính Khổng Tử cùng những bậc hiền tài Nho học xưa?","answer":"Văn Miếu Quốc Tử Giám","type":"HN","value":10,"ifOpen":false},{"id":6,"question":"Hình ảnh 1 hiển thị bia tiến sĩ","answer":"Bia tiến sĩ","type":"CNV","value":80,"ifOpen":false,"picFileName":"1.jpeg"}],"playerAnswers":[{"answer":"","correct":false},{"answer":"","correct":false},{"answer":"","correct":false},{"answer":"","correct":false}],"showResults":false,"disabledPlayers":[],"noOfOpenRows":6,"CNVPlayers":[]}
+{
+  "questions": [
+    {
+      "id": 1,
+      "question": "(11) Lê Tư Thành hay Lê Hạo là tên húy ủa vị vua nào?",
+      "answer": "Lê Thánh Tông",
+      "type": "HN",
+      "value": 10,
+      "ifOpen": false
+    },
+    {
+      "id": 2,
+      "question": "Hầu hết các đồng vị có số hiệu nguyên tố lớn hơn hoặc bằng bao nhiêu là đồng vị không bền?",
+      "answer": "82",
+      "type": "HN",
+      "value": 10,
+      "audioFileName": "1.mp3",
+      "ifOpen": false,
+      "audioFilePath": "1.mp3"
+    },
+    {
+      "id": 3,
+      "question": "Số nào sau đây chia hết cho 7: 1480, 1481, 1482, 1483, 1484, 1485?",
+      "answer": "1484",
+      "type": "HN",
+      "value": 10,
+      "ifOpen": false
+    },
+    {
+      "id": 4,
+      "question": "Các di sản thế giới được công nhận bởi tổ chức nào?",
+      "answer": "UNESCO",
+      "type": "HN",
+      "value": 10,
+      "ifOpen": false
+    },
+    {
+      "id": 5,
+      "question": "Công trình nào được xây dựng để dạy học và thờ kính Khổng Tử cùng những bậc hiền tài Nho học xưa?",
+      "answer": "Văn Miếu Quốc Tử Giám",
+      "type": "HN",
+      "value": 10,
+      "ifOpen": false
+    },
+    {
+      "id": 6,
+      "question": "Hình ảnh 1 hiển thị bia tiến sĩ",
+      "answer": "Bia tiến sĩ",
+      "type": "CNV",
+      "value": 80,
+      "ifOpen": false,
+      "picFileName": "1.jpeg"
+    }
+  ],
+  "playerAnswers": [
+    { "answer": "", "correct": false },
+    { "answer": "", "correct": false },
+    { "answer": "", "correct": false },
+    { "answer": "", "correct": false }
+  ],
+  "showResults": false,
+  "disabledPlayers": [],
+  "noOfOpenRows": 6,
+  "CNVPlayers": []
+}

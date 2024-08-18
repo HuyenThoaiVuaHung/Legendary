@@ -1,32 +1,41 @@
-/**
- * The server.js file contains the implementation of a socket.io server.
- * It initializes the server, handles socket connections, and defines various event listeners.
- * The server supports authentication, updating match data, changing match positions, and more.
- * It also includes functions for managing timers, sorting data, and censoring match data.
- * @module server
- * @requires fs
-
- */
+const { Server } = require('socket.io');
+const express = require('express');
+const { createServer } = require('http');
+const log = require("./utils/logger.js").log;
+const cors = require('cors');
 const fs = require("fs");
-/**
- * @requires socket.io
- * @type socket.io
- */
-const io = require("socket.io")(3000, {
+const { join } = require('path');
+const config = require("./utils/config.json");
+const compression = require('compression');
+const app = express();
+const os = require('os');
+app.use(cors(
+  {
+    origin: ['*']
+  }
+));
+
+const server = createServer(app);
+const io = new Server(server, {
   cors: {
-    origin: "*",
-  },
+    origin: "*"
+  }
 });
-const config = require("./config.json");
-const log = require("./logger.js").log;
+
+app.use(compression());
+app.use(express.static(join(__dirname, 'Legion')))
+app.use('*', (_req, res) => {
+
+  res.sendFile(join(__dirname, 'Legion', 'index.html'));
+});
+
+
 const date = new Date();
-log("Server khởi động thành công, đang chờ kết nối mới..");
 if (config.saveLog)
   log(
     "Diễn biến của máy chủ sẽ được ghi lại tại " +
-      `/logs/${
-        date.getDate() + "." + (date.getMonth() + 1) + "." + date.getFullYear()
-      }.txt`
+    `/logs/${date.getDate() + "." + (date.getMonth() + 1) + "." + date.getFullYear()
+    }.txt`
   );
 // Nhập mã bí mật ở đây
 var playerSecrets = ["123", "234", "345", "456"];
@@ -87,11 +96,7 @@ function sortByTimestamp(a, b) {
   }
   return 0;
 }
-function censorMatchData(matchData) {
-  let temp = matchData;
 
-  return temp;
-}
 io.on("connection", (socket) => {
   socket.on("verify-identity", (authID, callback) => {
     if (playerSecrets.includes(authID)) {
@@ -112,24 +117,25 @@ io.on("connection", (socket) => {
       fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
       log(
         "Player " +
-          matchData.players[playerSecrets.indexOf(authID)].name +
-          " connected at " +
-          socket.id
+        matchData.players[playerSecrets.indexOf(authID)].name +
+        " connected at " +
+        socket.id
       );
-      io.emit("update-match-data", matchData);
-      io.to(socket.id).emit("authentication", censorMatchData(matchData), {
-        socketId: socket.id,
+      callback({
         roleId: 0,
-        index: playerSecrets.indexOf(authID),
+        matchData: matchData,
+        index: playerSecrets.indexOf(authID)
       });
+      io.emit("update-match-data", matchData);
     } else if (authID == adminSecret) {
       // Admin
       log("Admin connected at " + socket.id);
       adminId = socket.id;
-      io.to(socket.id).emit("authentication", matchData, {
-        socketId: socket.id,
+      callback({
         roleId: 1,
+        matchData: matchData,
       });
+
     } else if (authID == mcSecret) {
       // MC
       log("MC connected at " + socket.id);
@@ -140,27 +146,26 @@ io.on("connection", (socket) => {
     } else {
       // Viewer
       log("Viewer connected at " + socket.id);
+
       callback({
         roleId: 3,
         matchData: matchData,
-        player: undefined,
-        playerIndex: undefined,
       });
     }
   });
   //Todo: write authenticated emitter and emit the unnecessary info from being emitted
   socket.on("get-match-data", (callback) => {
+    callback(matchData);
     if (callback) {
-      callback(censorMatchData(matchData));
     }
   });
   socket.on("disconnect", () => {
     if (socketIDs.includes(socket.id)) {
       log(
         "Player " +
-          matchData.players[socketIDs.indexOf(socket.id)].name +
-          " disconnected at " +
-          socket.id,
+        matchData.players[socketIDs.indexOf(socket.id)].name +
+        " disconnected at " +
+        socket.id,
         1
       );
       matchData.players[socketIDs.indexOf(socket.id)].isReady = false;
@@ -189,243 +194,25 @@ io.on("connection", (socket) => {
   socket.on("get-match-position", (callback) => {
     callback(matchData.matchPos);
   });
-  socket.on("update-data-from-excel", (recievedJSON, callback) => {
+  socket.on("update-data-from-excel", async (recievedJSON, callback) => {
     if (socket.id == adminId) {
-      let kdData = JSON.parse(
-        fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath)
-      );
-      let vcnvData = JSON.parse(
-        fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath)
-      );
-      let ttData = JSON.parse(
-        fs.readFileSync(
-          JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath
-        )
-      );
-      let vdData = JSON.parse(
-        fs.readFileSync(
-          JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath
-        )
-      );
-      let chpData = JSON.parse(
-        fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).ChpFilePath)
-      );
-      kdData.questions.singleplayer = [[], [], [], []];
-      kdData.questions.multiplayer = [];
-      let kdCurrentPlayer = 0;
-      let kdQCounter = 0;
-      vdData.questions = [];
-      for (let i = 3; i <= 26; i++) {
-        if (recievedJSON.kd[i].__EMPTY) {
-          let question = {};
-          question.question = recievedJSON.kd[i].__EMPTY;
-          question.answer = recievedJSON.kd[i].__EMPTY_1;
-          if (recievedJSON.kd[i].__EMPTY_2) {
-            question.type = "P";
-            question.audioFilePath = recievedJSON.kd[i].__EMPTY_2;
-          } else if (recievedJSON.kd[i].__EMPTY_3) {
-            question.type = "A";
-            question.audioFilePath = recievedJSON.kd[i].__EMPTY_2;
-          } else {
-            question.type = "N";
-          }
-          kdData.questions.singleplayer[kdCurrentPlayer].push(question);
-          kdQCounter++;
-          if (kdQCounter == 6) {
-            kdQCounter = 0;
-            kdCurrentPlayer++;
-          }
-        }
+      try {
+        const excelHandler = await import("./utils/excelHandler.mjs");
+        let [kdData, vcnvData, ttData, vdData, chpData] = excelHandler.default(recievedJSON, matchDataPath);
+        io.emit("update-kd-data-admin", kdData);
+        io.emit("update-vcnv-data", vcnvData);
+        io.emit("update-tangtoc-data", ttData);
+        io.emit("update-vedich-data", vdData);
+        io.emit("update-chp-data", chpData);
       }
-      for (let i = 29; i <= 40; i++) {
-        if (recievedJSON.kd[i].__EMPTY) {
-          let question = {};
-          question.question = recievedJSON.kd[i].__EMPTY;
-          question.answer = recievedJSON.kd[i].__EMPTY_1;
-          if (recievedJSON.kd[i].__EMPTY_2) {
-            question.type = "P";
-            question.audioFilePath = recievedJSON.kd[i].__EMPTY_2;
-          } else if (recievedJSON.kd[i].__EMPTY_3) {
-            question.type = "A";
-            question.audioFilePath = recievedJSON.kd[i].__EMPTY_2;
-          } else {
-            question.type = "N";
-          }
-          kdData.questions.multiplayer.push(question);
-        }
+      catch (e) {
+        console.log(e);
       }
 
-      fs.writeFileSync(
-        JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath,
-        JSON.stringify(kdData)
-      );
-      io.emit("update-kd-data-admin", kdData);
-      log("Hoàn thành nhập đề KD");
-      vcnvData.questions[5].answer = recievedJSON.vcnv[1].__EMPTY;
-      vcnvData.questions[5].picFileName = recievedJSON.vcnv[1].__EMPTY_2;
-      for (let i = 3; i <= 7; i++) {
-        vcnvData.questions[i - 3].question = recievedJSON.vcnv[i].__EMPTY;
-        vcnvData.questions[i - 3].answer = recievedJSON.vcnv[i].__EMPTY_1;
-        vcnvData.questions[i - 3].ifOpen = false;
-        vcnvData.questions[i - 3].ifShown = false;
-        if (recievedJSON.vcnv[i].__EMPTY_2) {
-          vcnvData.questions[i - 3].audioFilePath =
-            recievedJSON.vcnv[i].__EMPTY_2;
-          vcnvData.questions[i - 3].type = "HN_S";
-        } else {
-          vcnvData.questions[i - 3].type = "HN";
-        }
-      }
-      fs.writeFileSync(
-        JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath,
-        JSON.stringify(vcnvData)
-      );
-      io.emit("update-vcnv-data", vcnvData);
-      log("Hoàn thành nhập đề VCNV");
-      for (let i = 0; i <= 3; i++) {
-        if (
-          recievedJSON.tt[i + 2].__EMPTY &&
-          recievedJSON.tt[i + 2].__EMPTY_1
-        ) {
-          ttData.questions[i].question = recievedJSON.tt[i + 2].__EMPTY;
-          ttData.questions[i].answer = recievedJSON.tt[i + 2].__EMPTY_1;
-          if (i < 3) {
-            ttData.questions[i].type = "TT_IMG";
-            ttData.questions[i].question_image =
-              recievedJSON.tt[i + 2].__EMPTY_2;
-            if (recievedJSON.tt[i + 2].__EMPTY_3) {
-              ttData.questions[i].answer_image =
-                recievedJSON.tt[i + 2].__EMPTY_3;
-            }
-          } else {
-            ttData.questions[i].video_name = recievedJSON.tt[i + 2].__EMPTY_2;
-            ttData.questions[i].type = "TT_VD";
-          }
-        }
-      }
-
-      fs.writeFileSync(
-        JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath,
-        JSON.stringify(ttData)
-      );
-      io.emit("update-tangtoc-data", ttData);
-      log("Hoàn thành nhập đề tăng tốc");
-      for (let i = 3; i <= 8; i++) {
-        vdData.questionPools[0][i - 3].question = recievedJSON.vd[i].__EMPTY;
-        vdData.questionPools[0][i - 3].answer = recievedJSON.vd[i].__EMPTY_1;
-        if (recievedJSON.vd[i]["VỀ ĐÍCH"] == "Câu hỏi 20 điểm") {
-          vdData.questionPools[0][i - 3].value = 20;
-        } else {
-          vdData.questionPools[0][i - 3].value = 30;
-        }
-        if (recievedJSON.vd[i].__EMPTY_2) {
-          vdData.questionPools[0][i - 3].type = "V";
-          vdData.questionPools[0][i - 3].file_name =
-            recievedJSON.vd[i].__EMPTY_2;
-        } else if (recievedJSON.vd[i].__EMPTY_3) {
-          vdData.questionPools[0][i - 3].type = "I";
-          vdData.questionPools[0][i - 3].file_name =
-            recievedJSON.vd[i].__EMPTY_3;
-        } else if (recievedJSON.vd[i].__EMPTY_4) {
-          vdData.questionPools[0][i - 3].type = "A";
-          vdData.questionPools[0][i - 3].file_name =
-            recievedJSON.vd[i].__EMPTY_4;
-        } else {
-          vdData.questionPools[0][i - 3].type = "N";
-        }
-      }
-      for (let i = 11; i <= 16; i++) {
-        vdData.questionPools[1][i - 11].question = recievedJSON.vd[i].__EMPTY;
-        vdData.questionPools[1][i - 11].answer = recievedJSON.vd[i].__EMPTY_1;
-        if (recievedJSON.vd[i]["VỀ ĐÍCH"] == "Câu hỏi 20 điểm") {
-          vdData.questionPools[1][i - 11].value = 20;
-        } else {
-          vdData.questionPools[1][i - 11].value = 30;
-        }
-        if (recievedJSON.vd[i].__EMPTY_2) {
-          vdData.questionPools[1][i - 11].type = "V";
-          vdData.questionPools[1][i - 11].file_name =
-            recievedJSON.vd[i].__EMPTY_2;
-        } else if (recievedJSON.vd[i].__EMPTY_3) {
-          vdData.questionPools[1][i - 11].type = "I";
-          vdData.questionPools[1][i - 11].file_name =
-            recievedJSON.vd[i].__EMPTY_3;
-        } else if (recievedJSON.vd[i].__EMPTY_4) {
-          vdData.questionPools[1][i - 11].type = "A";
-          vdData.questionPools[1][i - 11].file_name =
-            recievedJSON.vd[i].__EMPTY_4;
-        } else {
-          vdData.questionPools[1][i - 11].type = "N";
-        }
-      }
-      for (let i = 19; i <= 24; i++) {
-        vdData.questionPools[2][i - 19].question = recievedJSON.vd[i].__EMPTY;
-        vdData.questionPools[2][i - 19].answer = recievedJSON.vd[i].__EMPTY_1;
-        if (recievedJSON.vd[i]["VỀ ĐÍCH"] == "Câu hỏi 20 điểm") {
-          vdData.questionPools[2][i - 19].value = 20;
-        } else {
-          vdData.questionPools[2][i - 19].value = 30;
-        }
-        if (recievedJSON.vd[i].__EMPTY_2) {
-          vdData.questionPools[2][i - 19].type = "V";
-          vdData.questionPools[2][i - 19].file_name =
-            recievedJSON.vd[i].__EMPTY_2;
-        } else if (recievedJSON.vd[i].__EMPTY_3) {
-          vdData.questionPools[2][i - 19].type = "I";
-          vdData.questionPools[2][i - 19].file_name =
-            recievedJSON.vd[i].__EMPTY_3;
-        } else if (recievedJSON.vd[i].__EMPTY_4) {
-          vdData.questionPools[2][i - 19].type = "A";
-          vdData.questionPools[2][i - 19].file_name =
-            recievedJSON.vd[i].__EMPTY_4;
-        } else {
-          vdData.questionPools[2][i - 19].type = "N";
-        }
-      }
-      for (let i = 27; i <= 32; i++) {
-        vdData.questionPools[3][i - 27].question = recievedJSON.vd[i].__EMPTY;
-        vdData.questionPools[3][i - 27].answer = recievedJSON.vd[i].__EMPTY_1;
-        if (recievedJSON.vd[i]["VỀ ĐÍCH"] == "Câu hỏi 20 điểm") {
-          vdData.questionPools[3][i - 27].value = 20;
-        } else {
-          vdData.questionPools[3][i - 27].value = 30;
-        }
-        if (recievedJSON.vd[i].__EMPTY_2) {
-          vdData.questionPools[3][i - 27].type = "V";
-          vdData.questionPools[3][i - 27].file_name =
-            recievedJSON.vd[i].__EMPTY_2;
-        } else if (recievedJSON.vd[i].__EMPTY_3) {
-          vdData.questionPools[3][i - 27].type = "I";
-          vdData.questionPools[3][i - 27].file_name =
-            recievedJSON.vd[i].__EMPTY_3;
-        } else if (recievedJSON.vd[i].__EMPTY_4) {
-          vdData.questionPools[3][i - 27].type = "A";
-          vdData.questionPools[3][i - 27].file_name =
-            recievedJSON.vd[i].__EMPTY_4;
-        } else {
-          vdData.questionPools[3][i - 27].type = "N";
-        }
-      }
-      fs.writeFileSync(
-        JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath,
-        JSON.stringify(vdData)
-      );
-      io.emit("update-vedich-data", vdData);
-      for (i = 35; i <= 37; i++) {
-        if (recievedJSON.vd[i].__EMPTY && recievedJSON.vd[i].__EMPTY_1) {
-          chpData.questions[i - 35].question = recievedJSON.vd[i].__EMPTY;
-          chpData.questions[i - 35].answer = recievedJSON.vd[i].__EMPTY_1;
-        }
-      }
-      fs.writeFileSync(
-        JSON.parse(fs.readFileSync(matchDataPath)).ChpFilePath,
-        JSON.stringify(chpData)
-      );
-      io.emit("update-chp-data", chpData);
-      log("Hoàn thành nhập đề Về đích & CHP");
-      log("Hoàn thành nhập từ file excel");
     }
+
   });
+
   socket.on("start-clock", (time) => {
     timerActive = false;
     matchData.pauseTime = 0;
@@ -486,7 +273,9 @@ io.on("connection", (socket) => {
         message: "Success",
       });
     }
+
   });
+
   socket.on("edit-player-info", (payload, callback) => {
     if (adminId == socket.id) {
       matchData.players[payload.index] = payload.player;
@@ -514,23 +303,40 @@ io.on("connection", (socket) => {
         "player-got-turn-kd",
         matchData.players[socketIDs.indexOf(socket.id)]
       );
-      log("Player " + socketIDs.indexOf(socket.id) + " requested turn", 0);
+      console.log(lastTurnId);
     }
+    else log("Player " + socketIDs.indexOf(socket.id) + " requested turn", 0);
   });
+
+  socket.on('get-kd-data', (callback) => {
+    const kd_data = JSON.parse(
+      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath)
+    );
+    kd_data.questions = undefined;
+    callback(kd_data);
+  })
+
   socket.on("change-singleplayer-kd-turn", (playerId) => {
     if (socket.id == adminId) {
-      var kd_data = JSON.parse(
+      const kdData = JSON.parse(
         fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath)
       );
-      kd_data.currentSingleplayerPlayer = playerId - 1;
+      kdData.currentSingleplayerPlayer = playerId - 1;
       fs.writeFileSync(
         JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath,
-        JSON.stringify(kd_data)
+        JSON.stringify(kdData)
       );
-      socket.emit("update-kd-data-admin", kd_data);
+      socket.emit("update-kd-data-admin", kdData);
+      kdData.questions = undefined;
+      io.emit("update-kd-data", kdData);
     }
   });
   socket.on("clear-turn-kd", () => {
+    log(
+      "Cleared turn khoi dong",
+      0
+    );
+
     lastTurnId = "";
     io.emit("clear-turn-player-kd");
     io.emit("enable-answer-button-kd");
@@ -541,28 +347,36 @@ io.on("connection", (socket) => {
       fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath)
     );
     kdCurrentQuestionNo++;
+    log("Current question no: " + kdCurrentQuestionNo);
+
     io.emit(
       "update-number-question-kd",
       kdCurrentMaxQuesNo,
       kdCurrentQuestionNo
     );
-    if (lastTurnId && kdData.gamemode == "M") {
-      matchData.players[socketIDs.indexOf(lastTurnId)].score += 10;
-      log(
-        "Player " +
-          matchData.players[socketIDs.indexOf(lastTurnId)].name +
-          " got 10 points",
-        0
-      );
-    } else if (kdData.gamemode == "S") {
+    if (kdData.gamemode == "S") {
       matchData.players[kdData.currentSingleplayerPlayer].score += 10;
       log(
         "Player " +
-          matchData.players[kdData.currentSingleplayerPlayer].name +
-          " got 10 points",
+        matchData.players[kdData.currentSingleplayerPlayer].name +
+        " got 10 points",
         0
       );
     }
+    else if (lastTurnId && kdData.gamemode == "M") {
+      if (!socketIDs.includes(lastTurnId)) {
+        log("Player " + lastTurnId + " is not in the list", 2);
+        return;
+      }
+      matchData.players[socketIDs.indexOf(lastTurnId)].score += 10;
+      log(
+        "Player " +
+        matchData.players[socketIDs.indexOf(lastTurnId)].name +
+        " got 10 points",
+        0
+      );
+    }
+
     fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
     io.emit("update-match-data", matchData);
     threeSecTimerType = "N";
@@ -570,22 +384,26 @@ io.on("connection", (socket) => {
   });
   socket.on("wrong-mark-kd", () => {
     io.emit("enable-answer-button-kd");
-    if (matchData.players[socketIDs.indexOf(lastTurnId)].score > 0) {
-      var kdData = JSON.parse(
-        fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath)
-      );
-      kdCurrentQuestionNo++;
-      if (kdData.gamemode == "M") {
+    var kdData = JSON.parse(
+      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath)
+    );
+    if (kdData.gamemode == "M") {
+      if (!socketIDs.includes(lastTurnId)) {
+        log("Player " + lastTurnId + " is not in the list", 2);
+        return;
+      }
+      else if (matchData.players[socketIDs.indexOf(lastTurnId)].score > 0) {
         matchData.players[socketIDs.indexOf(lastTurnId)].score -= 5;
         log(
           "Player " +
-            matchData.players[socketIDs.indexOf(lastTurnId)].name +
-            " lost 5 points",
+          matchData.players[socketIDs.indexOf(lastTurnId)].name +
+          " lost 5 points",
           0
         );
       }
     }
     kdCurrentQuestionNo++;
+    log("Current question no: " + kdCurrentQuestionNo);
     io.emit(
       "update-number-question-kd",
       kdCurrentMaxQuesNo,
@@ -618,7 +436,13 @@ io.on("connection", (socket) => {
     lastTurnId = '';
   })
   */
+  socket.on('update-number-question-kd', (maxQuesNo, currentQuesNo) => {
+    kdCurrentMaxQuesNo = maxQuesNo;
+    kdCurrentQuestionNo = currentQuesNo;
+    io.emit('update-number-question-kd', kdCurrentMaxQuesNo, kdCurrentQuestionNo);
+  })
   socket.on("start-3s-timer-kd", (ifPlayer) => {
+
     if (ifPlayer) {
       threeSecTimerType = "P";
       let counter = 30;
@@ -642,12 +466,16 @@ io.on("connection", (socket) => {
           }
           if (threeSecTimerType == "P") {
             threeSecTimerType = "N";
-            if (matchData.players[socketIDs.indexOf(lastTurnId)].score > 0) {
+            if (!socketIDs.includes(lastTurnId)) {
+              log("Player " + lastTurnId + " is not in the list", 2);
+
+            }
+            else if (matchData.players[socketIDs.indexOf(lastTurnId)].score > 0) {
               matchData.players[socketIDs.indexOf(lastTurnId)].score -= 5;
               log(
                 "Player " +
-                  matchData.players[socketIDs.indexOf(lastTurnId)].name +
-                  " lost 5 points",
+                matchData.players[socketIDs.indexOf(lastTurnId)].name +
+                " lost 5 points",
                 0
               );
             }
@@ -812,11 +640,15 @@ io.on("connection", (socket) => {
       JSON.stringify(vcnvData)
     );
   });
-  socket.on("clear-player-answer", () => {
+  socket.on("clear-player-answer", (playerIndex) => {
     //read vcnvFile
     let vcnvData = JSON.parse(
       fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath)
     );
+    if (!socketIDs.includes(socket.id)) {
+      log("Player " + socket.id + " is not in the list", 2);
+      return;
+    }
     vcnvData.playerAnswers[socketIDs.indexOf(socket.id)].answer = "";
     vcnvData.playerAnswers[socketIDs.indexOf(socket.id)].correct = false;
     fs.writeFileSync(
@@ -891,8 +723,8 @@ io.on("connection", (socket) => {
           matchData.players[i].score += vcnvData.questions[5].value;
           log(
             "Player " +
-              matchData.players[i].name +
-              `got ${vcnvData.questions[5].value} points`,
+            matchData.players[i].name +
+            `got ${vcnvData.questions[5].value} points`,
             0
           );
         } else {
@@ -932,6 +764,10 @@ io.on("connection", (socket) => {
         JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath
       )
     );
+    if (!socketIDs.includes(socket.id)) {
+      log("Player " + socket.id + " is not in the list", 2);
+      return;
+    }
     tangtocData.playerAnswers[socketIDs.indexOf(socket.id)].answer = answer;
     tangtocData.playerAnswers[socketIDs.indexOf(socket.id)].timestamp =
       timestamp;
@@ -977,8 +813,8 @@ io.on("connection", (socket) => {
         matchData.players[markData[i].id - 1].score += markCounter * 10;
         log(
           "Player " +
-            matchData.players[markData[i].id - 1].name +
-            ` got ${markCounter * 10} points`,
+          matchData.players[markData[i].id - 1].name +
+          ` got ${markCounter * 10} points`,
           0
         );
         markCounter--;
@@ -1117,7 +953,7 @@ io.on("connection", (socket) => {
       log("Chấm điểm nshv cho thí sinh + " + id);
       matchData.players[id - 1].score += value * 2;
       log(
-        "Player " + matchData.players[id-1].name + ` got ${value * 2} points`,
+        "Player " + matchData.players[id - 1].name + ` got ${value * 2} points`,
         0
       );
 
@@ -1126,7 +962,7 @@ io.on("connection", (socket) => {
       if (lastStealingPlayerId != -1) {
         log("Chấm điểm đúng thí sinh cướp câu hỏi " + id);
         matchData.players[id - 1].score += value;
-        log("Player " + matchData.players[id-1].name + ` got ${value} points`, 0);
+        log("Player " + matchData.players[id - 1].name + ` got ${value} points`, 0);
         if (!vedichData.ifNSHV) {
           matchData.players[vedichData.currentPlayerId - 1].score -= value;
           log(
@@ -1137,7 +973,7 @@ io.on("connection", (socket) => {
       } else {
         log("Chấm điểm đúng thí sinh " + id);
         matchData.players[id - 1].score += value;
-        log("Player " + matchData.players[id-1].name + ` got ${value} points`, 0);
+        log("Player " + matchData.players[id - 1].name + ` got ${value} points`, 0);
       }
     }
     vedichData.ifNSHV = false;
@@ -1180,6 +1016,11 @@ io.on("connection", (socket) => {
       io.emit("player-steal-question", socketIDs.indexOf(socket.id));
     }
   });
+  socket.on('reset-stealing-player', () => {
+    lastStealingPlayerId = -1;
+    io.emit("clear-stealing-player");
+
+  });
   socket.on("vd-play-video", () => {
     io.emit("vd-play-video");
   });
@@ -1195,8 +1036,8 @@ io.on("connection", (socket) => {
         currentVdQuestion.value;
       log(
         "Player " +
-          matchData.players[vdData.currentPlayerId - 1].name +
-          ` lost ${currentVdQuestion.value} points`,
+        matchData.players[vdData.currentPlayerId - 1].name +
+        ` lost ${currentVdQuestion.value} points`,
         0
       );
 
@@ -1245,7 +1086,7 @@ io.on("connection", (socket) => {
     io.emit("update-chp-data", data);
   });
   socket.on("broadcast-chp-question", (id) => {
-    chpData = JSON.parse(
+    const chpData = JSON.parse(
       fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).ChpFilePath)
     );
     io.emit("update-chp-question", chpData.questions[id]);
@@ -1260,6 +1101,7 @@ io.on("connection", (socket) => {
       chpTurnId = socketIDs.indexOf(socket.id);
       chpLastTurnSocketId = socket.id;
       io.emit("lock-button-chp");
+      io.emit("play-sfx", "KD_GET_TURN");
       io.emit("got-turn-chp", chpTurnId);
       playPauseTime();
     }
@@ -1285,4 +1127,20 @@ io.on("connection", (socket) => {
   socket.on("clear-question-chp", () => {
     io.emit("update-chp-question", {});
   });
+});
+
+server.listen(80, () => {
+  log('Server Legion khởi động thành công.', 0);
+  log("Server Legendary khởi động thành công, đang chờ kết nối mới..");
+
+  const nets = os.networkInterfaces();
+
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name]) {
+      if (net.family === 'IPv4' && !net.internal) {
+        log('Địa chỉ IP của máy chủ: http://' + net.address, 1);
+      }
+    }
+  }
+  log("Không cần hai chấm gì đâu nhé ;)", 0);
 });
