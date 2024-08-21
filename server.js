@@ -7,6 +7,7 @@ const fs = require("fs");
 const { join } = require('path');
 const config = require("./utils/config.json");
 const compression = require('compression');
+const matchDataHelper = require("./utils/matchdata.helper.js");
 const app = express();
 const os = require('os');
 app.use(cors(
@@ -46,7 +47,14 @@ var matchDataPath = "match_data/123.json";
 
 var socketIDs = ["", "", "", ""];
 var adminId = "";
-var matchData = JSON.parse(fs.readFileSync(matchDataPath));
+var matchData;
+if (fs.existsSync(matchDataPath)) {
+  matchData = JSON.parse(fs.readFileSync(matchDataPath));
+}
+else {
+  matchData = matchDataHelper.provideNewMatchData();
+  fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
+}
 var lastTurnId = "";
 let lastStealingPlayerId = -1;
 var kdCurrentMaxQuesNo = 0;
@@ -275,7 +283,16 @@ io.on("connection", (socket) => {
     }
 
   });
+  socket.on('update-kd-data', (data) => {
 
+    fs.writeFileSync(
+      JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath,
+      JSON.stringify(data)
+    );
+    socket.emit("update-kd-data-admin", fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath));
+
+
+  })
   socket.on("edit-player-info", (payload, callback) => {
     if (adminId == socket.id) {
       matchData.players[payload.index] = payload.player;
