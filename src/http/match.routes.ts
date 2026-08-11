@@ -260,11 +260,10 @@ export function createMatchRoutes(deps: ApiDeps): Router {
   router.get(API_PATHS.exportLegion, adminOnly, async (_req, res) => {
     try {
       const archive = await legionFiles.exportArchive();
-      const safeName =
-        store.getMatch().matchName.replace(/[^a-zA-Z0-9._-]+/g, '_') || 'match';
+      const safeName = archive.fileName.replace(/[^a-zA-Z0-9._-]+/g, '_') || 'match.legion';
       res.setHeader('Content-Type', 'application/zip');
-      res.setHeader('Content-Disposition', `attachment; filename="${safeName}.legion"`);
-      res.send(archive);
+      res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
+      res.send(archive.buffer);
     } catch (err) {
       log(err, LogLevel.Error);
       serverError(res, err);
