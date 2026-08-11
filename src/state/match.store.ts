@@ -60,8 +60,12 @@ export class MatchStore {
   setMatch(match: MatchState): MatchState {
     this.match = match;
     this.persistMatch();
-    for (const kind of ROUND_KINDS) this.rounds[kind] = this.loadRoundFile(kind);
+    for (const kind of ROUND_KINDS) this.reloadRound(kind);
     return this.match;
+  }
+
+  private reloadRound<K extends RoundKind>(kind: K): void {
+    this.rounds[kind] = this.loadRoundFile(kind);
   }
 
   // ------------------------------------------------------------- round data
