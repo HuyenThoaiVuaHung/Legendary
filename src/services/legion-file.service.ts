@@ -98,6 +98,8 @@ interface EditorData {
 // ---------------------------------------------------------------------------
 
 const EDITOR_DATA_ENTRY = 'editorData.json';
+const MAX_ARCHIVE_ENTRIES = 1000;
+const MAX_ARCHIVE_TOTAL_BYTES = 1024 * 1024 * 1024; // 1 GiB decompressed
 /** Media folders a .legion archive may contain, mirrored as media kinds. */
 const MEDIA_FOLDERS = [...ROUND_KINDS, 'misc'] as const;
 type MediaFolder = (typeof MEDIA_FOLDERS)[number];
@@ -265,14 +267,26 @@ export class LegionFileService {
 
   private extractMedia(zip: AdmZip): Partial<Record<MediaFolder, number>> {
     const counts: Partial<Record<MediaFolder, number>> = {};
+    let extractedEntries = 0;
+    let extractedBytes = 0;
     for (const entry of zip.getEntries()) {
       if (entry.isDirectory || entry.entryName === EDITOR_DATA_ENTRY) continue;
       const segments = entry.entryName.replace(/\\/g, '/').split('/').filter(Boolean);
       if (segments.length < 2) continue;
       const folder = segments[0] as MediaFolder;
       if (!MEDIA_FOLDERS.includes(folder)) continue;
+      // Zip-bomb guard: bound decompressed output, not just the upload size.
+      if (extractedEntries + 1 > MAX_ARCHIVE_ENTRIES) {
+        throw new Error(`Archive has more than ${MAX_ARCHIVE_ENTRIES} media entries`);
+      }
+      const data = entry.getData();
+      if (extractedBytes + data.length > MAX_ARCHIVE_TOTAL_BYTES) {
+        throw new Error('Archive decompresses past the allowed total media size');
+      }
+      extractedEntries += 1;
+      extractedBytes += data.length;
       const name = segments[segments.length - 1];
-      this.media.saveWithName(folder, name, entry.getData());
+      this.media.saveWithName(folder, name, data);
       counts[folder] = (counts[folder] ?? 0) + 1;
     }
     return counts;

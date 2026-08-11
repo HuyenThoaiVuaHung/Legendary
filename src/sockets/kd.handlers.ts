@@ -76,7 +76,7 @@ export function registerKdHandlers(ctx: HandlerContext): void {
     session.kdDecisionTimerOwner = DecisionTimerOwner.Player;
     session.kdTurnPlayerIndex = playerIndex;
     io.emit('disable-answer-button-kd');
-    io.emit('player-got-turn-kd', store.getMatch().players[playerIndex]);
+    io.emit('player-got-turn-kd', playerIndex);
   });
 
   socket.on('clear-turn-kd', () => {
@@ -129,11 +129,10 @@ export function registerKdHandlers(ctx: HandlerContext): void {
 
     if (kd.get().gamemode === 'M') {
       const holder = session.kdTurnPlayerIndex;
-      if (holder === NO_PLAYER) {
-        log('wrong-mark-kd with no turn holder', LogLevel.Error);
-        return;
-      }
-      penalizePlayer(holder);
+      // No holder: skip the penalty but still advance the question and reset
+      // turn state below, as the old server did.
+      if (holder === NO_PLAYER) log('wrong-mark-kd with no turn holder', LogLevel.Warn);
+      else penalizePlayer(holder);
     }
 
     session.kdCurrentQuestionNo += 1;

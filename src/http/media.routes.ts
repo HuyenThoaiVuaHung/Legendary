@@ -18,6 +18,12 @@ import type { ApiDeps } from './index';
 const MEDIA_KINDS: readonly string[] = [...ROUND_KINDS, 'misc'];
 
 const ALLOWED_MIME_PREFIXES: readonly string[] = ['image/', 'audio/', 'video/'];
+/** Extension allow-list — keeps html/svg/js out even with a spoofed mimetype. */
+const ALLOWED_EXTENSIONS: ReadonlySet<string> = new Set([
+  'png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'bmp',
+  'mp3', 'wav', 'ogg', 'm4a', 'flac',
+  'mp4', 'webm', 'mkv', 'mov',
+]);
 
 function badRequest(res: Response, message: string): void {
   const error: ApiError = { error: message };
@@ -54,8 +60,12 @@ export function createMediaRoutes(deps: ApiDeps): Router {
         badRequest(res, `Missing multipart field "${UPLOAD_FIELD}"`);
         return;
       }
-      if (!ALLOWED_MIME_PREFIXES.some((prefix) => file.mimetype.startsWith(prefix))) {
-        const error: ApiError = { error: `Unsupported media type: ${file.mimetype}` };
+      const extension = file.originalname.split('.').pop()?.toLowerCase() ?? '';
+      if (
+        !ALLOWED_MIME_PREFIXES.some((prefix) => file.mimetype.startsWith(prefix)) ||
+        !ALLOWED_EXTENSIONS.has(extension)
+      ) {
+        const error: ApiError = { error: `Unsupported media type: ${file.mimetype} (.${extension})` };
         res.status(415).json(error);
         return;
       }
@@ -71,6 +81,9 @@ export function createMediaRoutes(deps: ApiDeps): Router {
       res.status(404).json(error);
       return;
     }
+    // Media is user-uploaded: never let the browser sniff it into an
+    // executable same-origin document.
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.sendFile(resolve(path));
   });
 

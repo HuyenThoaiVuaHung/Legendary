@@ -76,9 +76,14 @@ export class TimerService {
     return this.running;
   }
 
-  /** Seconds currently shown on the clock; 0 when stopped. */
+  /**
+   * Seconds currently shown on the clock; while paused this is the stashed
+   * remainder, so "is there still time" checks behave the same as the old
+   * server's mainTimer during a pause.
+   */
   remainingSeconds(): number {
-    return this.remaining;
+    if (this.running) return this.remaining;
+    return this.store.getMatch().pausedTimerSeconds;
   }
 
   private run(seconds: number): void {
