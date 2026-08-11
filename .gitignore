@@ -132,3 +132,13 @@ Temporary Items
 match_data/~$TestForm.xlsx
 tempCodeRunnerFile.js
 /Legion
+
+# Runtime match state (generated at runtime; fixtures stay tracked)
+match_data/match.json
+match_data/media/
+match_data/round_data/imported_*.json
+match_data/round_data/kd.json
+match_data/round_data/vcnv.json
+match_data/round_data/tt.json
+match_data/round_data/vd.json
+match_data/round_data/chp.json
