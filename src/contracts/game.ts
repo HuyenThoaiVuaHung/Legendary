@@ -9,7 +9,17 @@
 export const ROUND_KINDS = ['kd', 'vcnv', 'tt', 'vd', 'chp'] as const;
 export type RoundKind = (typeof ROUND_KINDS)[number];
 
-export const MATCH_POSITIONS = ['H', 'KD', 'VCNV_Q', 'TT_Q', 'VD', 'CHP'] as const;
+export const MATCH_POSITIONS = [
+  'H',
+  'KD',
+  'VCNV_Q',
+  'VCNV_A',
+  'TT_Q',
+  'TT_A',
+  'VD',
+  'CHP',
+  'PNTS',
+] as const;
 export type MatchPosition = (typeof MATCH_POSITIONS)[number];
 
 export interface Player {
