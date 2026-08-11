@@ -1,4 +1,5 @@
 import { KD_CLOCK_START_DELAY_MS } from '../game.rules';
+import { Role } from '../contracts/api';
 import { HandlerContext, isAdmin } from './context';
 
 /**
@@ -16,7 +17,9 @@ export function registerCommonHandlers(ctx: HandlerContext): void {
   });
 
   socket.on('start-clock', (seconds: number) => {
-    if (!isAdmin(ctx)) return;
+    // Admin or MC may drive the clock (the old server did not gate this at
+    // all; players/viewers stay locked out).
+    if (!isAdmin(ctx) && ctx.identity.roleId !== Role.Mc) return;
     // A fresh clock discards any stashed pause and reopens the KD buzzers;
     // the old server then waited a beat before the countdown actually ran.
     store.updateMatch((match) => {

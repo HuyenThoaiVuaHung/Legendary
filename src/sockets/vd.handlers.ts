@@ -52,11 +52,9 @@ export function registerVdHandlers(ctx: HandlerContext): void {
   });
 
   // Legacy payload note: the `id` argument of the marking events is the
-  // 1-based player display number — converted to a 0-based index here, at
-  // the boundary.
-  socket.on('mark-correct-vd', (id: number, value: number) => {
+  // Payload is a 0-based player index, like every other new-contract event.
+  socket.on('mark-correct-vd', (playerIndex: number, value: number) => {
     if (!isAdmin(ctx)) return;
-    const playerIndex = id - 1;
     const data = vd.get();
     const stealerIndex = session.vdStealingPlayerIndex;
 
@@ -94,9 +92,8 @@ export function registerVdHandlers(ctx: HandlerContext): void {
     io.emit('clear-stealing-player');
   });
 
-  socket.on('mark-incorrect-vd', (id: number, value: number) => {
+  socket.on('mark-incorrect-vd', (playerIndex: number, value: number) => {
     if (!isAdmin(ctx)) return;
-    const playerIndex = id - 1;
 
     const match = store.updateMatch((m) => {
       const player = m.players[playerIndex];
