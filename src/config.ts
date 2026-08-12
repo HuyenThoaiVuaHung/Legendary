@@ -15,6 +15,8 @@ export interface ServerConfig {
   mediaDir: string;
   /** Directory the built Legion frontend is served from. */
   frontendDir: string;
+  /** Directory of static UI images, served at /assets. */
+  assetsDir: string;
   saveLog: boolean;
   uploadLimitBytes: number;
   tokenTtlSeconds: number;
@@ -34,6 +36,7 @@ const DEFAULTS = {
   matchDataPath: 'match_data/match.json',
   mediaDir: 'match_data/media',
   frontendDir: 'Legion',
+  assetsDir: 'assets',
   saveLog: false,
   uploadLimitMb: 100,
   tokenTtlSeconds: 24 * 60 * 60,
@@ -60,6 +63,7 @@ export function loadConfig(): ServerConfig {
     matchDataPath: str('matchDataPath', DEFAULTS.matchDataPath),
     mediaDir: str('mediaDir', DEFAULTS.mediaDir),
     frontendDir: str('frontendDir', DEFAULTS.frontendDir),
+    assetsDir: str('assetsDir', DEFAULTS.assetsDir),
     saveLog: Boolean(fileConfig['saveLog'] ?? DEFAULTS.saveLog),
     uploadLimitBytes: num('uploadLimitMb', DEFAULTS.uploadLimitMb) * BYTES_PER_MB,
     tokenTtlSeconds: num('tokenTtlSeconds', DEFAULTS.tokenTtlSeconds),

@@ -21,7 +21,7 @@ const log = createLogger(config.saveLog);
 const store = new MatchStore(config.matchDataPath, log);
 const session = new GameSessionState();
 const auth = new AuthService(config);
-const media = new MediaStore(config.mediaDir, config.frontendDir);
+const media = new MediaStore(config.mediaDir, config.assetsDir);
 const legionFiles = new LegionFileService(store, media);
 
 const app = express();
@@ -35,7 +35,7 @@ const io = new Server(httpServer, { cors: { origin: '*' } });
 const timer = new TimerService(io, store, config.rules);
 
 app.use(createApiRouter({ io, store, session, auth, media, legionFiles, log, config }));
-mountFrontend(app, config.frontendDir);
+mountFrontend(app, config.frontendDir, config.assetsDir);
 
 registerSockets({ io, store, session, auth, timer, rules: config.rules, log });
 
