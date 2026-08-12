@@ -17,6 +17,13 @@ const LEGACY_ASSET_ROOTS = [
 ] as const;
 
 /**
+ * Subdirectory for VCNV obstacle pieces. Its leading underscore keeps it out
+ * of the round-kind namespace, and the public /media route refuses to serve
+ * it — pieces are reachable only through the reveal-gated obstacle route.
+ */
+const OBSTACLE_DIR = '_obstacle';
+
+/**
  * Owns all media files on disk. Uploads land in `<mediaDir>/<kind>/`;
  * reads fall back to the legacy asset folders bundled with the frontend
  * so pre-rewrite question files keep working.
@@ -68,6 +75,24 @@ export class MediaStore {
       if (existsSync(candidate)) return resolve(candidate);
     }
     return undefined;
+  }
+
+  /**
+   * Store a VCNV obstacle piece in the protected directory (never served by
+   * the public /media route). Returns the random-prefixed file name.
+   */
+  saveObstaclePiece(originalName: string, buffer: Buffer): string {
+    const prefix = randomBytes(RANDOM_PREFIX_BYTES).toString('hex');
+    const fileName = `${prefix}-${sanitizeFileName(originalName)}`;
+    this.write(OBSTACLE_DIR, fileName, buffer);
+    return fileName;
+  }
+
+  /** Absolute path of a protected obstacle piece, or undefined. */
+  resolveObstaclePiece(name: string): string | undefined {
+    if (!isSafePathSegment(name)) return undefined;
+    const candidate = join(this.mediaDir, OBSTACLE_DIR, name);
+    return existsSync(candidate) ? resolve(candidate) : undefined;
   }
 
   private write(kind: string, fileName: string, buffer: Buffer): void {

@@ -79,6 +79,12 @@ export interface VcnvQuestion {
   answer: string;
   imageFile?: string;
   audioFile?: string;
+  /**
+   * CNV question only: the five reveal-piece files cut from imageFile
+   * ([corner1..corner4, center]); piece i is served to clients only once its
+   * row is open, so the uncut image never leaks early.
+   */
+  imagePieceFiles?: string[];
 }
 
 export interface PlayerAnswer {

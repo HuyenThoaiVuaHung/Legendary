@@ -26,6 +26,11 @@ export const VCNV_ROW_COUNT = 5;
 /** Index of the central obstacle question inside VcnvRound.questions. */
 export const VCNV_OBSTACLE_INDEX = 5;
 /**
+ * The obstacle image is cut into this many reveal pieces: four corners tied
+ * to rows 0-3 and the center tied to row 4 (the special row).
+ */
+export const VCNV_PIECE_COUNT = 5;
+/**
  * Obstacle value by number of revealed rows: the fewer rows revealed when a
  * player buzzes, the more the obstacle is worth.
  */
