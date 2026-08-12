@@ -1,9 +1,5 @@
 import { Role } from '../contracts/api';
-import {
-  CHP_CORRECT_POINTS,
-  CHP_TURN_SECONDS,
-  PLAYER_COUNT,
-} from '../game.rules';
+import { PLAYER_COUNT } from '../game.rules';
 import { NO_PLAYER } from '../state/game.state';
 import { HandlerContext, isAdmin } from './context';
 
@@ -22,7 +18,7 @@ function resolvePlayerIndex(ctx: HandlerContext): number {
 }
 
 export function registerChpHandlers(ctx: HandlerContext): void {
-  const { io, socket, store, session, timer } = ctx;
+  const { io, socket, store, session, timer, rules } = ctx;
   const chp = store.round('chp');
 
   socket.on('broadcast-chp-question', (id: number) => {
@@ -34,7 +30,7 @@ export function registerChpHandlers(ctx: HandlerContext): void {
   });
 
   socket.on('start-timer-chp', () => {
-    timer.startMainClock(CHP_TURN_SECONDS);
+    timer.startMainClock(rules.chpTurnSeconds);
     io.emit('unlock-button-chp');
   });
 
@@ -58,7 +54,7 @@ export function registerChpHandlers(ctx: HandlerContext): void {
 
     io.emit('play-sfx', SFX_CORRECT);
     const match = store.updateMatch((m) => {
-      m.players[holder].score += CHP_CORRECT_POINTS;
+      m.players[holder].score += rules.chpCorrectPoints;
     });
     io.emit('update-match-data', match);
     session.chpTurnPlayerIndex = NO_PLAYER;

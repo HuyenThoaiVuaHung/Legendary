@@ -18,13 +18,10 @@ import {
   VdRound,
 } from '../contracts/game';
 import {
-  CHP_CORRECT_POINTS,
-  KD_CORRECT_POINTS,
-  OBSTACLE_VALUE_BY_REVEALED_COUNT,
+  DEFAULT_GAME_RULES,
   PLAYER_COUNT,
   VCNV_OBSTACLE_INDEX,
   VCNV_ROW_COUNT,
-  VCNV_ROW_POINTS,
 } from '../game.rules';
 import { MatchStore } from '../state/match.store';
 import { MediaStore, sanitizeFileName } from './media.store';
@@ -248,7 +245,7 @@ export class LegionFileService {
             question: q.question,
             answer: q.answer,
             type: EditorQuestionType.Text,
-            value: CHP_CORRECT_POINTS,
+            value: DEFAULT_GAME_RULES.chpCorrectPoints,
           })),
         },
       },
@@ -381,7 +378,7 @@ function mapVcnvRound(src: EditorVcnvQuestionData | undefined): VcnvRound {
     .map((q, index): VcnvQuestion => ({
       id: index + 1,
       type: 'HN',
-      value: VCNV_ROW_POINTS,
+      value: DEFAULT_GAME_RULES.vcnvRowPoints,
       isOpen: false,
       isShown: false,
       question: q.question,
@@ -392,7 +389,7 @@ function mapVcnvRound(src: EditorVcnvQuestionData | undefined): VcnvRound {
   const obstacle: VcnvQuestion = {
     id: VCNV_OBSTACLE_INDEX + 1,
     type: 'CNV',
-    value: OBSTACLE_VALUE_BY_REVEALED_COUNT[0],
+    value: DEFAULT_GAME_RULES.obstacleValueByRevealedCount[0],
     isOpen: false,
     isShown: false,
     question: '',
@@ -478,7 +475,7 @@ function kdToEditor(q: KdQuestion): EditorQuestion {
     question: q.question,
     answer: q.answer,
     type: EDITOR_TYPE_BY_KD[q.type] ?? EditorQuestionType.Text,
-    value: KD_CORRECT_POINTS,
+    value: DEFAULT_GAME_RULES.kdCorrectPoints,
     ...(q.mediaFile ? { mediaSrcName: q.mediaFile } : {}),
   };
 }

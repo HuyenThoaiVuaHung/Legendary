@@ -1,6 +1,7 @@
 import { randomBytes } from 'crypto';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
+import { GameRules, loadGameRules } from './game.rules';
 
 export interface ServerConfig {
   port: number;
@@ -19,6 +20,8 @@ export interface ServerConfig {
   tokenTtlSeconds: number;
   /** HMAC secret for tokens; random per boot unless pinned in config/env. */
   jwtSecret: string;
+  /** Game scoring/timing rules, defaults overridden by config's `rules`. */
+  rules: GameRules;
 }
 
 const CONFIG_FILE = join(__dirname, '..', 'utils', 'config.json');
@@ -61,5 +64,6 @@ export function loadConfig(): ServerConfig {
     uploadLimitBytes: num('uploadLimitMb', DEFAULTS.uploadLimitMb) * BYTES_PER_MB,
     tokenTtlSeconds: num('tokenTtlSeconds', DEFAULTS.tokenTtlSeconds),
     jwtSecret: str('jwtSecret', randomBytes(JWT_SECRET_RANDOM_BYTES).toString('hex')),
+    rules: loadGameRules(fileConfig['rules'] as Partial<GameRules> | undefined),
   };
 }

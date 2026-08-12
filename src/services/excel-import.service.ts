@@ -24,7 +24,7 @@ import {
   VdQuestion,
   VdRound,
 } from '../contracts/game';
-import { PLAYER_COUNT, VCNV_ROW_COUNT, VCNV_ROW_POINTS } from '../game.rules';
+import { DEFAULT_GAME_RULES, PLAYER_COUNT, VCNV_ROW_COUNT } from '../game.rules';
 import { MatchStore } from '../state/match.store';
 
 type ExcelRow = Record<string, unknown>;
@@ -137,7 +137,7 @@ export class ExcelImportService {
       const question: VcnvQuestion = {
         id: i + 1,
         type: audioFile !== undefined ? 'HN_S' : 'HN',
-        value: VCNV_ROW_POINTS,
+        value: DEFAULT_GAME_RULES.vcnvRowPoints,
         isOpen: false,
         isShown: false,
         question: cellText(row, COL_QUESTION),

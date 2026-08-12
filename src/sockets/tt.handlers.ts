@@ -12,11 +12,7 @@
  */
 import { Role } from '../contracts/api';
 import { TtAnswer } from '../contracts/game';
-import {
-  MAIN_CLOCK_TICK_MS,
-  PLAYER_COUNT,
-  TT_POINTS_BY_PLACEMENT,
-} from '../game.rules';
+import { PLAYER_COUNT } from '../game.rules';
 import { LogLevel } from '../logger';
 import { NO_PLAYER } from '../state/game.state';
 import { HandlerContext, isAdmin } from './context';
@@ -49,7 +45,7 @@ function resolvePlayerIndex(ctx: HandlerContext): number {
 }
 
 export function registerTtHandlers(ctx: HandlerContext): void {
-  const { io, socket, store, log } = ctx;
+  const { io, socket, store, log, rules } = ctx;
   const tt = store.round('tt');
 
   socket.on('player-submit-answer-tangtoc', (answer: string) => {
@@ -70,7 +66,7 @@ export function registerTtHandlers(ctx: HandlerContext): void {
 
   socket.on('update-timer-start-timestamp', () => {
     const data = tt.update((d) => {
-      d.timerStartTimestamp = Date.now() + MAIN_CLOCK_TICK_MS;
+      d.timerStartTimestamp = Date.now() + rules.mainClockTickMs;
     });
     io.emit('update-tangtoc-data', data);
   });
@@ -85,7 +81,7 @@ export function registerTtHandlers(ctx: HandlerContext): void {
       let placement = 0;
       for (const answer of ranked) {
         if (answer.correct !== true) continue;
-        const points = TT_POINTS_BY_PLACEMENT[placement] ?? 0;
+        const points = rules.ttPointsByPlacement[placement] ?? 0;
         m.players[answer.playerIndex].score += points;
         log(`Player ${m.players[answer.playerIndex].name} got ${points} points`);
         placement++;
