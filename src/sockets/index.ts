@@ -1,5 +1,6 @@
 import { Server } from 'socket.io';
 import { Role } from '../contracts/api';
+import { GameRules } from '../game.rules';
 import { LogFn, LogLevel } from '../logger';
 import { AuthService } from '../services/auth.service';
 import { TimerService } from '../services/timer.service';
@@ -39,11 +40,12 @@ export interface SocketDeps {
   session: GameSessionState;
   auth: AuthService;
   timer: TimerService;
+  rules: GameRules;
   log: LogFn;
 }
 
 export function registerSockets(deps: SocketDeps): void {
-  const { io, store, session, auth, timer, log } = deps;
+  const { io, store, session, auth, timer, rules, log } = deps;
 
   // Handshake: resolve the token to an identity. Never reject — an absent
   // or invalid token simply yields a viewer, matching the old
@@ -57,7 +59,7 @@ export function registerSockets(deps: SocketDeps): void {
 
   io.on('connection', (socket) => {
     const identity = socket.data.identity as SocketIdentity;
-    const ctx: HandlerContext = { io, socket, identity, store, session, timer, log };
+    const ctx: HandlerContext = { io, socket, identity, store, session, timer, rules, log };
 
     if (identity.roleId === Role.Player && identity.index !== undefined) {
       markPlayerConnected(ctx, identity.index);

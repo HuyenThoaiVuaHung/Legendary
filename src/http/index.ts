@@ -13,6 +13,7 @@ import { MediaStore } from '../services/media.store';
 import { GameSessionState } from '../state/game.state';
 import { MatchStore } from '../state/match.store';
 import { createAuthRoutes } from './auth.routes';
+import { createConfigRoutes } from './config.routes';
 import { createMatchRoutes } from './match.routes';
 import { createMediaRoutes } from './media.routes';
 
@@ -31,6 +32,7 @@ export interface ApiDeps {
 export function createApiRouter(deps: ApiDeps): Router {
   const router = Router();
   router.use(createAuthRoutes(deps));
+  router.use(createConfigRoutes(deps));
   router.use(createMatchRoutes(deps));
   router.use(createMediaRoutes(deps));
   return router;

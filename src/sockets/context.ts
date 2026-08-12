@@ -1,5 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import { Role } from '../contracts/api';
+import { GameRules } from '../game.rules';
 import { LogFn } from '../logger';
 import { GameSessionState } from '../state/game.state';
 import { MatchStore } from '../state/match.store';
@@ -23,6 +24,7 @@ export interface HandlerContext {
   store: MatchStore;
   session: GameSessionState;
   timer: TimerService;
+  rules: GameRules;
   log: LogFn;
 }
 

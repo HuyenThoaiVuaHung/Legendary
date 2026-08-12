@@ -32,12 +32,12 @@ app.use(express.json());
 const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: '*' } });
 
-const timer = new TimerService(io, store);
+const timer = new TimerService(io, store, config.rules);
 
 app.use(createApiRouter({ io, store, session, auth, media, legionFiles, log, config }));
 mountFrontend(app, config.frontendDir);
 
-registerSockets({ io, store, session, auth, timer, log });
+registerSockets({ io, store, session, auth, timer, rules: config.rules, log });
 
 httpServer.listen(config.port, () => {
   log('Server Legendary khởi động thành công, đang chờ kết nối mới…');

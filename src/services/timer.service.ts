@@ -1,5 +1,5 @@
 import { Server } from 'socket.io';
-import { MAIN_CLOCK_TICK_MS } from '../game.rules';
+import { GameRules } from '../game.rules';
 import { MatchStore } from '../state/match.store';
 
 /**
@@ -23,6 +23,7 @@ export class TimerService {
   constructor(
     private readonly io: Server,
     private readonly store: MatchStore,
+    private readonly rules: GameRules,
   ) {}
 
   /**
@@ -90,7 +91,7 @@ export class TimerService {
     this.running = true;
     this.remaining = seconds;
     this.io.emit('update-clock', this.remaining);
-    this.tickHandle = setInterval(() => this.tick(), MAIN_CLOCK_TICK_MS);
+    this.tickHandle = setInterval(() => this.tick(), this.rules.mainClockTickMs);
   }
 
   private tick(): void {

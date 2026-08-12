@@ -1,11 +1,5 @@
 import { Role } from '../contracts/api';
 import { KdQuestion } from '../contracts/game';
-import {
-  DECISION_TICK_MS,
-  KD_CORRECT_POINTS,
-  KD_DECISION_TICKS,
-  KD_WRONG_PENALTY,
-} from '../game.rules';
 import { LogLevel } from '../logger';
 import { DecisionTimerOwner, NO_PLAYER } from '../state/game.state';
 import { HandlerContext, isAdmin } from './context';
@@ -31,7 +25,7 @@ function resolvePlayerIndex(ctx: HandlerContext): number {
 }
 
 export function registerKdHandlers(ctx: HandlerContext): void {
-  const { io, socket, store, session, timer, log } = ctx;
+  const { io, socket, store, session, timer, log, rules } = ctx;
   const kd = store.round('kd');
 
   const emitQuestionNumbers = (): void => {
@@ -51,8 +45,8 @@ export function registerKdHandlers(ctx: HandlerContext): void {
     store.updateMatch((m) => {
       const player = m.players[playerIndex];
       if (!player || player.score <= 0) return;
-      player.score -= KD_WRONG_PENALTY;
-      log(`Player ${player.name} lost ${KD_WRONG_PENALTY} points`);
+      player.score -= rules.kdWrongPenalty;
+      log(`Player ${player.name} lost ${rules.kdWrongPenalty} points`);
     });
   };
 
@@ -106,15 +100,15 @@ export function registerKdHandlers(ctx: HandlerContext): void {
       store.updateMatch((m) => {
         const player = m.players[data.activePlayerIndex];
         if (!player) return;
-        player.score += KD_CORRECT_POINTS;
-        log(`Player ${player.name} got ${KD_CORRECT_POINTS} points`);
+        player.score += rules.kdCorrectPoints;
+        log(`Player ${player.name} got ${rules.kdCorrectPoints} points`);
       });
     } else if (data.gamemode === 'M' && holder !== NO_PLAYER) {
       store.updateMatch((m) => {
         const player = m.players[holder];
         if (!player) return;
-        player.score += KD_CORRECT_POINTS;
-        log(`Player ${player.name} got ${KD_CORRECT_POINTS} points`);
+        player.score += rules.kdCorrectPoints;
+        log(`Player ${player.name} got ${rules.kdCorrectPoints} points`);
       });
     }
 
@@ -161,12 +155,12 @@ export function registerKdHandlers(ctx: HandlerContext): void {
     io.emit('update-questions-number-kd', questionCount);
   });
 
-  // Post-buzz decision window: KD_DECISION_TICKS × DECISION_TICK_MS. The
+  // Post-buzz decision window: rules.kdDecisionTicks × rules.decisionTickMs. The
   // player variant times out into a wrong answer for the turn holder; the
   // admin variant is a neutral countdown that simply advances the question.
   socket.on('start-3s-timer-kd', (isPlayerTimer: boolean) => {
     if (decisionCountdown !== undefined) clearInterval(decisionCountdown);
-    let counter = KD_DECISION_TICKS;
+    let counter = rules.kdDecisionTicks;
     session.kdDecisionTimerOwner = isPlayerTimer
       ? DecisionTimerOwner.Player
       : DecisionTimerOwner.Admin;
@@ -226,7 +220,7 @@ export function registerKdHandlers(ctx: HandlerContext): void {
           io.emit('update-3s-timer-kd', 0, false);
         }
       }
-    }, DECISION_TICK_MS);
+    }, rules.decisionTickMs);
     decisionCountdown = handle;
   });
 

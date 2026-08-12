@@ -1,63 +1,81 @@
 /**
- * Every game rule and timing value in one place. No other module may contain
- * a numeric literal with game meaning.
+ * Every tunable game rule and timing value. Defaults live here; a `rules`
+ * section in utils/config.json (or LEGENDARY_RULES_* env vars) overrides any
+ * of them, so operators can retune scoring/timers without a rebuild.
+ *
+ * Structural invariants that the code's shape depends on (board indices, piece
+ * geometry) are NOT knobs and stay as plain constants below.
  */
 
-export const PLAYER_COUNT = 4;
+export interface GameRules {
+  playerCount: number;
+  mainClockTickMs: number;
+  decisionTickMs: number;
 
-/** Main clock tick interval (the visible countdown). */
-export const MAIN_CLOCK_TICK_MS = 1000;
-/** Fast decision timers (KD 3-second window, VD steal window) tick at 10 Hz. */
-export const DECISION_TICK_MS = 100;
+  kdCorrectPoints: number;
+  kdWrongPenalty: number;
+  kdDecisionTicks: number;
+  kdClockStartDelayMs: number;
 
-// ---------------------------------------------------------------- KD (Khởi động)
+  vcnvRowPoints: number;
+  /** Obstacle value indexed by number of revealed rows (0..VCNV_ROW_COUNT). */
+  obstacleValueByRevealedCount: Record<number, number>;
 
-export const KD_CORRECT_POINTS = 10;
-export const KD_WRONG_PENALTY = 5;
-/** Ticks of the post-buzz decision window (30 ticks × 100ms = 3s). */
-export const KD_DECISION_TICKS = 30;
-/** Delay between the admin starting the clock and it actually running. */
-export const KD_CLOCK_START_DELAY_MS = 1000;
+  /** Points by finishing order for the Tăng tốc round (1st, 2nd, …). */
+  ttPointsByPlacement: number[];
 
-// ------------------------------------------------- VCNV (Vượt chướng ngại vật)
+  vdStealTicks: number;
+  vdWrongPenaltyDivisor: number;
+  vdHopeStarMultiplier: number;
 
-export const VCNV_ROW_POINTS = 10;
+  chpTurnSeconds: number;
+  chpCorrectPoints: number;
+}
+
+export const DEFAULT_GAME_RULES: GameRules = {
+  playerCount: 4,
+  mainClockTickMs: 1000,
+  decisionTickMs: 100,
+
+  kdCorrectPoints: 10,
+  kdWrongPenalty: 5,
+  kdDecisionTicks: 30,
+  kdClockStartDelayMs: 1000,
+
+  vcnvRowPoints: 10,
+  obstacleValueByRevealedCount: { 0: 50, 1: 50, 2: 40, 3: 30, 4: 20, 5: 10 },
+
+  ttPointsByPlacement: [40, 30, 20, 10],
+
+  vdStealTicks: 50,
+  vdWrongPenaltyDivisor: 2,
+  vdHopeStarMultiplier: 2,
+
+  chpTurnSeconds: 15,
+  chpCorrectPoints: 1,
+};
+
+/** Merge operator overrides over the defaults into a frozen rules object. */
+export function loadGameRules(overrides?: Partial<GameRules>): GameRules {
+  return Object.freeze({
+    ...DEFAULT_GAME_RULES,
+    ...overrides,
+    obstacleValueByRevealedCount: {
+      ...DEFAULT_GAME_RULES.obstacleValueByRevealedCount,
+      ...overrides?.obstacleValueByRevealedCount,
+    },
+    ttPointsByPlacement:
+      overrides?.ttPointsByPlacement ?? DEFAULT_GAME_RULES.ttPointsByPlacement,
+  });
+}
+
+// --------------------------------------------------------- structural invariants
+
+/** Players per match — the board, timers and arrays are all sized to this. */
+export const PLAYER_COUNT = DEFAULT_GAME_RULES.playerCount;
+/** Number of hàng ngang rows; fixed by the board layout. */
 export const VCNV_ROW_COUNT = 5;
 /** Index of the central obstacle question inside VcnvRound.questions. */
 export const VCNV_OBSTACLE_INDEX = 5;
-/**
- * The obstacle image is cut into this many reveal pieces: four corners tied
- * to rows 0-3 and the center tied to row 4 (the special row).
- */
+/** Reveal-piece count, fixed by the 4-corners-plus-centre geometry. */
 export const VCNV_PIECE_COUNT = 5;
-/**
- * Obstacle value by number of revealed rows: the fewer rows revealed when a
- * player buzzes, the more the obstacle is worth.
- */
-export const OBSTACLE_VALUE_BY_REVEALED_COUNT: Readonly<Record<number, number>> = {
-  0: 50,
-  1: 50,
-  2: 40,
-  3: 30,
-  4: 20,
-  5: 10,
-};
-
-// ---------------------------------------------------------------- TT (Tăng tốc)
-
-/** Points by finishing position: 1st correct answer gets 40, then 30, 20, 10. */
-export const TT_POINTS_BY_PLACEMENT: readonly number[] = [40, 30, 20, 10];
-
-// ----------------------------------------------------------------- VD (Về đích)
-
-/** Ticks of the steal window (50 ticks × 100ms = 5s). */
-export const VD_STEAL_TICKS = 50;
-/** A wrong answer costs half the question's value. */
-export const VD_WRONG_PENALTY_DIVISOR = 2;
-/** Hope star (Ngôi sao hy vọng) doubles a correct answer's value. */
-export const VD_HOPE_STAR_MULTIPLIER = 2;
-
-// --------------------------------------------------- CHP (Câu hỏi phụ, tiebreak)
-
-export const CHP_TURN_SECONDS = 15;
-export const CHP_CORRECT_POINTS = 1;

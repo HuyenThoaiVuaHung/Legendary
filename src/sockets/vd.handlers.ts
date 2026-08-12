@@ -1,11 +1,5 @@
 import { Role } from '../contracts/api';
 import { VdQuestion } from '../contracts/game';
-import {
-  DECISION_TICK_MS,
-  VD_HOPE_STAR_MULTIPLIER,
-  VD_STEAL_TICKS,
-  VD_WRONG_PENALTY_DIVISOR,
-} from '../game.rules';
 import { NO_PLAYER } from '../state/game.state';
 import { HandlerContext, isAdmin } from './context';
 
@@ -31,7 +25,7 @@ function resolvePlayerIndex(ctx: HandlerContext): number {
 }
 
 export function registerVdHandlers(ctx: HandlerContext): void {
-  const { io, socket, store, session, log } = ctx;
+  const { io, socket, store, session, log, rules } = ctx;
   const vd = store.round('vd');
 
   socket.on('broadcast-vd-question', (id: number) => {
@@ -63,7 +57,7 @@ export function registerVdHandlers(ctx: HandlerContext): void {
       if (!player) return;
       if (data.hopeStarActive && stealerIndex === NO_PLAYER) {
         // Hope star: the owner answered correctly, stakes are doubled.
-        const gained = value * VD_HOPE_STAR_MULTIPLIER;
+        const gained = value * rules.vdHopeStarMultiplier;
         player.score += gained;
         log(`Player ${player.name} got ${gained} points`);
       } else if (stealerIndex !== NO_PLAYER) {
@@ -98,7 +92,7 @@ export function registerVdHandlers(ctx: HandlerContext): void {
     const match = store.updateMatch((m) => {
       const player = m.players[playerIndex];
       if (!player) return;
-      const lost = value / VD_WRONG_PENALTY_DIVISOR;
+      const lost = value / rules.vdWrongPenaltyDivisor;
       player.score -= lost;
       log(`Player ${player.name} lost ${lost} points`);
     });
@@ -132,7 +126,7 @@ export function registerVdHandlers(ctx: HandlerContext): void {
   });
 
   socket.on('start-5s-countdown-vd', () => {
-    let counter = VD_STEAL_TICKS;
+    let counter = rules.vdStealTicks;
     session.vdStealWindowOpen = true;
     io.emit('unlock-button-vd');
 
@@ -164,7 +158,7 @@ export function registerVdHandlers(ctx: HandlerContext): void {
         io.emit('update-5s-countdown-vd', 0);
         io.emit('lock-button-vd');
       }
-    }, DECISION_TICK_MS);
+    }, rules.decisionTickMs);
     stealCountdown = handle;
   });
 }

@@ -14,12 +14,7 @@
  */
 import { Role } from '../contracts/api';
 import { ObstacleBuzz, PlayerAnswer, VcnvQuestion } from '../contracts/game';
-import {
-  PLAYER_COUNT,
-  VCNV_OBSTACLE_INDEX,
-  VCNV_ROW_COUNT,
-  VCNV_ROW_POINTS,
-} from '../game.rules';
+import { PLAYER_COUNT, VCNV_OBSTACLE_INDEX, VCNV_ROW_COUNT } from '../game.rules';
 import { LogLevel } from '../logger';
 import { NO_PLAYER } from '../state/game.state';
 import { HandlerContext, isAdmin } from './context';
@@ -52,7 +47,7 @@ function resolvePlayerIndex(ctx: HandlerContext): number {
 }
 
 export function registerVcnvHandlers(ctx: HandlerContext): void {
-  const { io, socket, store, log } = ctx;
+  const { io, socket, store, log, rules } = ctx;
   const vcnv = store.round('vcnv');
 
   socket.on('mark-answer-vcnv', (marks: boolean[]) => {
@@ -60,8 +55,8 @@ export function registerVcnvHandlers(ctx: HandlerContext): void {
     const match = store.updateMatch((m) => {
       for (let i = 0; i < Math.min(marks.length, PLAYER_COUNT); i++) {
         if (marks[i] === true) {
-          m.players[i].score += VCNV_ROW_POINTS;
-          log(`Player ${m.players[i].name} got ${VCNV_ROW_POINTS} points`);
+          m.players[i].score += rules.vcnvRowPoints;
+          log(`Player ${m.players[i].name} got ${rules.vcnvRowPoints} points`);
         }
       }
     });
@@ -127,8 +122,8 @@ export function registerVcnvHandlers(ctx: HandlerContext): void {
     const match = store.updateMatch((m) => {
       for (let i = 0; i < PLAYER_COUNT; i++) {
         if (marked[i]?.correct === true) {
-          m.players[i].score += VCNV_ROW_POINTS;
-          log(`Player ${m.players[i].name} got ${VCNV_ROW_POINTS} points`);
+          m.players[i].score += rules.vcnvRowPoints;
+          log(`Player ${m.players[i].name} got ${rules.vcnvRowPoints} points`);
         }
       }
     });

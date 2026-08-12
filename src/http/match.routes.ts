@@ -28,12 +28,7 @@ import {
   ROUND_KINDS,
   VcnvRound,
 } from '../contracts/game';
-import {
-  OBSTACLE_VALUE_BY_REVEALED_COUNT,
-  PLAYER_COUNT,
-  VCNV_OBSTACLE_INDEX,
-  VCNV_ROW_COUNT,
-} from '../game.rules';
+import { GameRules, PLAYER_COUNT, VCNV_OBSTACLE_INDEX, VCNV_ROW_COUNT } from '../game.rules';
 import { LogLevel } from '../logger';
 import { ExcelImportService } from '../services/excel-import.service';
 import { identityOf, requireAuth } from './middleware';
@@ -73,13 +68,13 @@ function emitRoundUpdate(io: Server, kind: RoundKind, data: RoundData): void {
  * Old update-vcnv-data rule: the obstacle's value is derived from how many
  * of the five rows are revealed when the payload is written.
  */
-function recomputeObstacleValue(vcnv: VcnvRound): void {
+function recomputeObstacleValue(vcnv: VcnvRound, rules: GameRules): void {
   const revealedCount = vcnv.questions
     .slice(0, VCNV_ROW_COUNT)
     .filter((question) => question.isShown).length;
   const obstacle = vcnv.questions[VCNV_OBSTACLE_INDEX];
   if (obstacle !== undefined) {
-    obstacle.value = OBSTACLE_VALUE_BY_REVEALED_COUNT[revealedCount] ?? obstacle.value;
+    obstacle.value = rules.obstacleValueByRevealedCount[revealedCount] ?? obstacle.value;
   }
 }
 
@@ -173,7 +168,7 @@ export function createMatchRoutes(deps: ApiDeps): Router {
       return;
     }
     if (kind === 'vcnv') {
-      recomputeObstacleValue(payload as VcnvRound);
+      recomputeObstacleValue(payload as VcnvRound, config.rules);
     }
     const data = store.round(kind).set(payload);
     emitRoundUpdate(io, kind, data);

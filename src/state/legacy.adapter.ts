@@ -38,12 +38,7 @@ import {
   VdQuestion,
   VdRound,
 } from '../contracts/game';
-import {
-  OBSTACLE_VALUE_BY_REVEALED_COUNT,
-  PLAYER_COUNT,
-  VCNV_ROW_COUNT,
-  VCNV_ROW_POINTS,
-} from '../game.rules';
+import { DEFAULT_GAME_RULES, PLAYER_COUNT, VCNV_ROW_COUNT } from '../game.rules';
 
 const DEFAULT_MATCH_NAME = 'Legendary';
 const DEFAULT_PLAYER_NAME_PREFIX = 'Thí sinh';
@@ -92,7 +87,7 @@ function defaultVcnvRound(): VcnvRound {
     (_, index): VcnvQuestion => ({
       id: index + 1,
       type: 'HN',
-      value: VCNV_ROW_POINTS,
+      value: DEFAULT_GAME_RULES.vcnvRowPoints,
       isOpen: false,
       isShown: false,
       question: '',
@@ -102,7 +97,7 @@ function defaultVcnvRound(): VcnvRound {
   questions.push({
     id: VCNV_ROW_COUNT + 1,
     type: 'CNV',
-    value: OBSTACLE_VALUE_BY_REVEALED_COUNT[NO_ROWS_REVEALED],
+    value: DEFAULT_GAME_RULES.obstacleValueByRevealedCount[NO_ROWS_REVEALED],
     isOpen: false,
     isShown: false,
     question: '',
@@ -322,7 +317,7 @@ function legacyVcnvQuestion(raw: unknown, index: number): VcnvQuestion {
   const question: VcnvQuestion = {
     id: asNumber(record['id'], index + 1),
     type: type === 'CNV' || type === 'HN_S' ? type : 'HN',
-    value: asNumber(record['value'], VCNV_ROW_POINTS),
+    value: asNumber(record['value'], DEFAULT_GAME_RULES.vcnvRowPoints),
     isOpen: (record['isOpen'] ?? record['ifOpen']) === true,
     isShown: (record['isShown'] ?? record['ifShown']) === true,
     question: asString(record['question'], ''),

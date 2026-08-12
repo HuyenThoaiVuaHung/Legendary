@@ -1,4 +1,3 @@
-import { KD_CLOCK_START_DELAY_MS } from '../game.rules';
 import { Role } from '../contracts/api';
 import { HandlerContext, isAdmin } from './context';
 
@@ -7,7 +6,7 @@ import { HandlerContext, isAdmin } from './context';
  * match, driving the main clock, and relaying sound effects.
  */
 export function registerCommonHandlers(ctx: HandlerContext): void {
-  const { io, socket, store, timer } = ctx;
+  const { io, socket, store, timer, rules } = ctx;
 
   socket.on('beginMatch', () => {
     store.updateMatch((match) => {
@@ -26,7 +25,7 @@ export function registerCommonHandlers(ctx: HandlerContext): void {
       match.pausedTimerSeconds = 0;
     });
     io.emit('enable-answer-button-kd');
-    timer.startMainClock(seconds, { startDelayMs: KD_CLOCK_START_DELAY_MS });
+    timer.startMainClock(seconds, { startDelayMs: rules.kdClockStartDelayMs });
   });
 
   socket.on('play-pause-clock', () => {
