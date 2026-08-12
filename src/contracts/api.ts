@@ -70,6 +70,10 @@ export const API_PATHS = {
   media: (kind: RoundKind | 'misc') => `/api/media/${kind}`,
   mediaFile: (kind: RoundKind | 'misc', name: string) =>
     `/media/${kind}/${encodeURIComponent(name)}`,
+  /** Admin uploads a single VCNV obstacle reveal piece to the protected store. */
+  obstaclePieceUpload: '/api/media/obstacle-piece',
+  /** Reveal-gated fetch of obstacle piece `index` (0-based). */
+  obstaclePiece: (index: number) => `/api/media/obstacle/${index}`,
   importLegion: '/api/match/import-legion',
   exportLegion: '/api/match/export-legion',
 } as const;
