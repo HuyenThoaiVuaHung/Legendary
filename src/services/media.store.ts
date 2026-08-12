@@ -9,11 +9,11 @@ const FALLBACK_FILE_NAME = 'file';
 /** Characters invalid on common filesystems, plus ASCII control characters. */
 const UNSAFE_NAME_CHARS = /[<>:"/\\|?*\u0000-\u001f]/g;
 
-/** Legacy asset roots inside the served frontend build, tried in order. */
+/** Question-media roots inside the backend assets dir, tried in order. */
 const LEGACY_ASSET_ROOTS = [
-  join('assets', 'picture-questions'),
-  join('assets', 'audio-questions'),
-  join('assets', 'video-questions'),
+  'picture-questions',
+  'audio-questions',
+  'video-questions',
 ] as const;
 
 /**
@@ -31,7 +31,8 @@ const OBSTACLE_DIR = '_obstacle';
 export class MediaStore {
   constructor(
     private readonly mediaDir: string,
-    private readonly frontendDir: string,
+    /** Backend static assets dir (holds the picture/audio/video-questions roots). */
+    private readonly assetsDir: string,
   ) {}
 
   /**
@@ -69,7 +70,7 @@ export class MediaStore {
     if (!isSafePathSegment(kind) || !isSafePathSegment(name)) return undefined;
     const candidates = [
       join(this.mediaDir, kind, name),
-      ...LEGACY_ASSET_ROOTS.map((root) => join(this.frontendDir, root, kind, name)),
+      ...LEGACY_ASSET_ROOTS.map((root) => join(this.assetsDir, root, kind, name)),
     ];
     for (const candidate of candidates) {
       if (existsSync(candidate)) return resolve(candidate);
