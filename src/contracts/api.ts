@@ -67,6 +67,18 @@ export interface RoomSecrets {
   player: string;
 }
 
+/** Current created room details; secrets are visible only to admins. */
+export interface RoomInfo {
+  roomId: string;
+  code: string;
+  expiresAt: number | null;
+  seats: (string | null)[];
+  ownerAccountId: string;
+  mediaBytes: number;
+  mediaQuotaBytes: number;
+  secrets?: RoomSecrets;
+}
+
 /** POST /api/rooms — the creator receives the secrets and an admin token. */
 export interface CreateRoomResponse {
   /** Created rooms are owned by the host account that created them. */

@@ -84,6 +84,7 @@ export function attachRoom(auth: AuthService, rooms: RoomRegistry): RequestHandl
       res.status(404).json(error);
       return;
     }
+    rooms.touch(room);
     (req as AuthedRequest).room = room;
     next();
   };

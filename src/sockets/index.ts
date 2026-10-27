@@ -1,5 +1,7 @@
 import { Server } from 'socket.io';
+import { IncomingMessage } from 'http';
 import { Role } from '../contracts/api';
+import { ipBucket } from '../http/client-ip';
 import { LogFn, LogLevel } from '../logger';
 import { DEFAULT_ROOM_ID, RoomRegistry } from '../rooms/room.registry';
 import { AuthService } from '../services/auth.service';
@@ -39,16 +41,25 @@ export interface SocketDeps {
   log: LogFn;
   /** Hosted mode: every socket must belong to a created room. */
   multiRoom: boolean;
+  clientIp: (req: IncomingMessage) => string;
+  maxSocketsPerIp: number;
 }
 
 export function registerSockets(deps: SocketDeps): void {
-  const { io, rooms, auth, log, multiRoom } = deps;
+  const { io, rooms, auth, log, multiRoom, clientIp, maxSocketsPerIp } = deps;
+  const socketCounts = new Map<string, number>();
 
   // Handshake: resolve the token to an identity. An absent or invalid token
   // simply yields a viewer of the default room, matching the old
   // verify-identity semantics where login could not fail. Only a token for a
   // room that no longer exists is rejected.
   io.use((socket, next) => {
+    const bucket = ipBucket(clientIp(socket.request));
+    if ((socketCounts.get(bucket) ?? 0) >= maxSocketsPerIp) {
+      next(new Error('Too many connections'));
+      return;
+    }
+    socket.data.ipBucket = bucket;
     const identity: SocketIdentity =
       auth.verifyToken(socket.handshake.auth?.token) ?? { roleId: Role.Viewer };
     const roomId = identity.roomId ?? DEFAULT_ROOM_ID;
@@ -72,7 +83,14 @@ export function registerSockets(deps: SocketDeps): void {
       socket.disconnect(true);
       return;
     }
+    const bucket = socket.data.ipBucket as string;
+    if ((socketCounts.get(bucket) ?? 0) >= maxSocketsPerIp) {
+      socket.disconnect(true);
+      return;
+    }
+    socketCounts.set(bucket, (socketCounts.get(bucket) ?? 0) + 1);
     void socket.join(room.id);
+    room.touch();
     const ctx: HandlerContext = {
       io: room.channel,
       socket,
@@ -90,7 +108,15 @@ export function registerSockets(deps: SocketDeps): void {
       log(`${ROLE_NAMES[identity.roleId]} connected at ${socket.id}`);
     }
 
-    socket.on('disconnect', () => markPlayerDisconnected(ctx));
+    socket.on('disconnect', () => {
+      const count = (socketCounts.get(bucket) ?? 1) - 1;
+      if (count === 0) {
+        socketCounts.delete(bucket);
+      } else {
+        socketCounts.set(bucket, count);
+      }
+      markPlayerDisconnected(ctx);
+    });
 
     for (const register of REGISTRARS) register(ctx);
   });

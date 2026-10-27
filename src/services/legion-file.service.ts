@@ -151,6 +151,13 @@ const EDITOR_TYPE_BY_KD: Record<KdQuestionType, EditorQuestionType> = {
  * editorData.json plus per-kind media folders), converting between the
  * editor's question bank and the canonical round contracts.
  */
+export class QuotaError extends Error {
+  constructor() {
+    super('Room storage is full');
+    this.name = 'QuotaError';
+  }
+}
+
 export class LegionFileService {
   constructor(
     private readonly store: MatchStore,
@@ -163,8 +170,11 @@ export class LegionFileService {
    * question bank into fresh round files, and reset the match state.
    * The caller (HTTP route) is responsible for emitting the update-* pushes.
    */
-  importArchive(buffer: Buffer): LegionImportResponse {
-    const { editorData, files } = parseArchive(buffer);
+  importArchive(buffer: Buffer, options: { maxMediaBytes?: number } = {}): LegionImportResponse {
+    const { editorData, files, totalMediaBytes } = parseArchive(buffer);
+    if (options.maxMediaBytes !== undefined && totalMediaBytes > options.maxMediaBytes) {
+      throw new QuotaError();
+    }
     const mediaCounts: Partial<Record<MediaFolder, number>> = {};
     const miscNames = new Map<string, string>();
     for (const file of files) {
@@ -317,7 +327,7 @@ export async function inspectLegionArchive(buffer: Buffer): Promise<{ matchName:
   return { matchName: editorData.matchData.matchName ?? '' };
 }
 
-function parseArchive(buffer: Buffer): { editorData: EditorData; files: { folder: MediaFolder; name: string; data: Buffer }[] } {
+function parseArchive(buffer: Buffer): { editorData: EditorData; files: { folder: MediaFolder; name: string; data: Buffer }[]; totalMediaBytes: number } {
   const zip = new AdmZip(buffer);
   const editorData = readEditorData(zip);
   const files: { folder: MediaFolder; name: string; data: Buffer }[] = [];
@@ -344,7 +354,7 @@ function parseArchive(buffer: Buffer): { editorData: EditorData; files: { folder
   if (typeof editorData.matchData.matchName !== 'string' || !Array.isArray(editorData.matchData.players)) {
     throw new Error('Invalid .legion file: invalid match data');
   }
-  return { editorData, files };
+  return { editorData, files, totalMediaBytes: total };
 }
 
 function readEditorData(zip: AdmZip): EditorData {

@@ -15,6 +15,9 @@ const results = new Map([
   ['rooms-auth persist-create', 'FAIL'],
   ['rooms-auth persist-verify', 'FAIL'],
   ['rooms-isolation', 'FAIL'],
+  ['bank', 'FAIL'],
+  ['unsafe trust proxy', 'FAIL'],
+  ['limits', 'FAIL'],
 ]);
 let server;
 let suite;
@@ -157,6 +160,33 @@ try {
     }
   } catch (error) {
     console.error(`Stage B: ${error.message}`);
+  } finally {
+    await stopServer();
+  }
+
+  if (!interrupted) {
+    const port = await freePort();
+    const unsafe = startChild([join(repo, 'dist', 'index.js')], {
+      cwd: tempDir, env: { ...env, LEGENDARY_PORT: String(port), LEGENDARY_TRUSTPROXY: 'true' }, stdio: 'ignore',
+    });
+    const result = await Promise.race([unsafe.done, new Promise((resolve) => setTimeout(() => resolve(null), 5000))]);
+    if (!result) { unsafe.kill(); await unsafe.done; }
+    if (result && typeof result.code === 'number' && result.code !== 0) results.set('unsafe trust proxy', 'PASS');
+  }
+
+  try {
+    const port = await freePort();
+    await startServer(port, {
+      ...env, LEGENDARY_PORT: String(port), LEGENDARY_MULTIROOM: 'true',
+      LEGENDARY_TRUSTPROXY: 'loopback', LEGENDARY_MAXSOCKETSPERIP: '3',
+      LEGENDARY_ROOMMEDIAQUOTABYTES: '2000', LEGENDARY_ROOMIDLETTLSECONDS: '3',
+      LEGENDARY_ROOMMAXTTLSECONDS: '8', LEGENDARY_ROOMSWEEPINTERVALSECONDS: '1',
+      LEGENDARY_ROOMEXPIRYWARNINGSECONDS: '2', LEGENDARY_ROOMJOINRATELIMIT: '2',
+      LEGENDARY_LOGINRATELIMIT: '2',
+    });
+    await runSuite('limits', 'limits.mjs', [String(port), roomsDir]);
+  } catch (error) {
+    console.error(`Stage D: ${error.message}`);
   } finally {
     await stopServer();
   }

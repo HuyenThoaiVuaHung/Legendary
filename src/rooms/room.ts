@@ -27,6 +27,7 @@ export interface RoomMeta {
   /** The room's live rules; persisted so settings survive a restart. */
   rules: GameRules;
   createdAt: number;
+  lastActiveAt: number;
 }
 
 /** Everything one match owns. One instance per room. */
@@ -49,6 +50,23 @@ export class Room {
     this.channel = io.to(id);
     this.timer = new TimerService(this.channel, store, rules);
     this.legionFiles = new LegionFileService(store, media, ui);
+  }
+
+  /** Record activity for a created room. */
+  touch(): void {
+    if (this.meta) this.meta.lastActiveAt = Date.now();
+  }
+
+  /** Earliest idle or maximum lifetime deadline. */
+  expiresAt(idleMs: number, maxMs: number): number | null {
+    if (!this.meta) return null;
+    return Math.min(this.meta.lastActiveAt + idleMs, this.meta.createdAt + maxMs);
+  }
+
+  /** Remaining media storage; the default room and zero quota are unlimited. */
+  quotaRemaining(quotaBytes: number): number {
+    if (!this.meta || quotaBytes === 0) return Infinity;
+    return Math.max(0, quotaBytes - this.media.usageBytes());
   }
 
   /**

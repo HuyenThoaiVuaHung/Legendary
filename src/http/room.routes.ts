@@ -28,6 +28,7 @@ import {
   JoinRoomRequest,
   JoinRoomResponse,
   Role,
+  RoomInfo,
   RoomSecrets,
   RotateSecretRequest,
   TokenPayload,
@@ -36,9 +37,10 @@ import {
 import { Room } from '../rooms/room';
 import { DEFAULT_ROOM_ID } from '../rooms/room.registry';
 import { BankStore } from '../services/bank.store';
+import { QuotaError } from '../services/legion-file.service';
 import { bankError } from './bank.routes';
 import { AccountStore } from '../services/account.store';
-import { AuthedRequest, accountOf, bearerToken, param, requireAccount, requireAuth, roomOf } from './middleware';
+import { AuthedRequest, accountOf, bearerToken, identityOf, param, requireAccount, requireAuth, roomOf } from './middleware';
 import type { ApiDeps } from './index';
 
 const MS_PER_SECOND = 1000;
@@ -129,9 +131,15 @@ export function createRoomRoutes(deps: ApiDeps, accounts: AccountStore, bank: Ba
         return;
       }
       try {
-        await room.legionFiles.importArchive(archive);
+        await room.legionFiles.importArchive(archive, {
+          maxMediaBytes: room.quotaRemaining(config.roomMediaQuotaBytes),
+        });
       } catch (err) {
         rooms.remove(room.id);
+        if (err instanceof QuotaError) {
+          fail(res, 413, 'Room storage is full');
+          return;
+        }
         fail(res, 400, err instanceof Error ? err.message : String(err));
         return;
       }
@@ -258,6 +266,22 @@ export function createRoomRoutes(deps: ApiDeps, accounts: AccountStore, bank: Ba
     } catch (err) {
       bankError(res, err);
     }
+  });
+
+  router.get(API_PATHS.currentRoom, requireAuth(auth), (req, res) => {
+    const room = createdRoomOf(req, res);
+    if (!room) return;
+    const info: RoomInfo = {
+      roomId: room.id,
+      code: room.meta.code,
+      expiresAt: room.expiresAt(config.roomIdleTtlSeconds * MS_PER_SECOND, config.roomMaxTtlSeconds * MS_PER_SECOND),
+      seats: room.meta.seats,
+      ownerAccountId: room.meta.ownerAccountId,
+      mediaBytes: room.media.usageBytes(),
+      mediaQuotaBytes: config.roomMediaQuotaBytes,
+    };
+    if (identityOf(req).roleId === Role.Admin) info.secrets = room.meta.secrets;
+    res.json(info);
   });
 
   router.delete(API_PATHS.currentRoom, adminOnly, (req, res) => {

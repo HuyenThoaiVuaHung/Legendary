@@ -17,6 +17,7 @@ const { RoomRegistry } = require(join(repo, 'dist/rooms/room.registry.js'));
 const { AuthService } = require(join(repo, 'dist/services/auth.service.js'));
 const { SessionStore } = require(join(repo, 'dist/services/session.store.js'));
 const { registerSockets } = require(join(repo, 'dist/sockets/index.js'));
+const { createClientIp } = require(join(repo, 'dist/http/client-ip.js'));
 
 let failures = 0;
 const check = (name, ok, detail = '') => {
@@ -31,7 +32,7 @@ const log = () => {};
 const sessions = new SessionStore(join('sandbox', 'sessions.json'), config.sessionIdleTtlSeconds * 1000, config.sessionMaxTtlSeconds * 1000, log);
 const auth = new AuthService(config, sessions);
 const rooms = new RoomRegistry(io, config, sessions, log);
-registerSockets({ io, rooms, auth, log, multiRoom: false });
+registerSockets({ io, rooms, auth, log, multiRoom: false, clientIp: createClientIp(config.trustProxy), maxSocketsPerIp: config.maxSocketsPerIp });
 await new Promise((r) => http.listen(0, r));
 const url = `http://localhost:${http.address().port}`;
 

@@ -23,6 +23,8 @@ const ROOM_META_FILE = 'room.json';
 const ROOM_MATCH_FILE = 'match.json';
 const ROOM_ROUND_DIR = 'round_data';
 const ROOM_MEDIA_DIR = 'media';
+const TOUCH_PERSIST_INTERVAL_MS = 10 * 60 * 1000;
+const MS_PER_SECOND = 1000;
 
 /** Typeable codes/secrets: no 0/O, 1/I/L look-alikes. */
 const TYPEABLE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -53,6 +55,8 @@ export function normalizeRoomCode(code: string): string {
 export class RoomRegistry {
   private readonly rooms = new Map<string, Room>();
   private readonly idByCode = new Map<string, string>();
+  private readonly lastTouchPersisted = new Map<string, number>();
+  private readonly warnedExpiry = new Map<string, number>();
 
   constructor(
     private readonly io: Server,
@@ -66,6 +70,9 @@ export class RoomRegistry {
       new Room(DEFAULT_ROOM_ID, io, store, this.mediaStore(config.mediaDir), config.rules, new UiConfigStore(join(dirname(config.matchDataPath), 'ui.json'))),
     );
     this.restore();
+    setInterval(() => {
+      void this.sweep().catch((err) => this.log(`Room sweep failed: ${String(err)}`, LogLevel.Warn));
+    }, config.roomSweepIntervalSeconds * MS_PER_SECOND).unref();
   }
 
   get(id: string): Room | undefined {
@@ -113,6 +120,7 @@ export class RoomRegistry {
       mc: typeable(MC_SECRET_LENGTH),
       player: typeable(PLAYER_SECRET_LENGTH),
     };
+    const createdAt = Date.now();
     const meta: RoomMeta = {
       code,
       ownerAccountId,
@@ -120,7 +128,8 @@ export class RoomRegistry {
       seats: Array(PLAYER_COUNT).fill(null),
       // A snapshot of the server rules: per-room edits never leak elsewhere.
       rules: loadGameRules(this.config.rules),
-      createdAt: Date.now(),
+      createdAt,
+      lastActiveAt: createdAt,
     };
     const room = this.open(id, meta);
     this.saveMeta(room);
@@ -134,6 +143,43 @@ export class RoomRegistry {
     const dir = this.roomDir(room.id);
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, ROOM_META_FILE), JSON.stringify(room.meta, null, 2));
+    this.lastTouchPersisted.set(room.id, Date.now());
+  }
+
+  /** Record activity and periodically persist it. */
+  touch(room: Room): void {
+    if (!room.meta) return;
+    room.touch();
+    if (Date.now() - (this.lastTouchPersisted.get(room.id) ?? 0) >= TOUCH_PERSIST_INTERVAL_MS) {
+      this.saveMeta(room);
+    }
+  }
+
+  /** Expire disconnected rooms and warn before their current deadline. */
+  async sweep(): Promise<string[]> {
+    const removed: string[] = [];
+    for (const room of this.list()) {
+      if (!room.meta) continue;
+      const sockets = await this.io.in(room.id).fetchSockets();
+      if (this.rooms.get(room.id) !== room) continue;
+      if (sockets.length > 0) this.touch(room);
+      const now = Date.now();
+      const expiresAt = room.expiresAt(
+        this.config.roomIdleTtlSeconds * MS_PER_SECOND,
+        this.config.roomMaxTtlSeconds * MS_PER_SECOND,
+      )!;
+      if (now >= expiresAt && sockets.length === 0) {
+        if (this.remove(room.id)) {
+          removed.push(room.id);
+          this.log(`Room ${room.id} expired`);
+        }
+      } else if (now < expiresAt && expiresAt - now <= this.config.roomExpiryWarningSeconds * MS_PER_SECOND &&
+        this.warnedExpiry.get(room.id) !== expiresAt) {
+        room.channel.emit('room-expiring', { expiresAt });
+        this.warnedExpiry.set(room.id, expiresAt);
+      }
+    }
+    return removed;
   }
 
   /**
@@ -148,6 +194,8 @@ export class RoomRegistry {
     this.sessions.revokeWhere((record) => record.roomId === id);
     this.io.in(id).disconnectSockets(true);
     this.rooms.delete(id);
+    this.lastTouchPersisted.delete(id);
+    this.warnedExpiry.delete(id);
     if (room.meta) this.idByCode.delete(room.meta.code);
     if (options.deleteData ?? true) {
       rmSync(this.roomDir(id), { recursive: true, force: true });
@@ -207,6 +255,7 @@ export class RoomRegistry {
         const raw = JSON.parse(readFileSync(metaPath, 'utf8')) as RoomMeta;
         const meta: RoomMeta = {
           ...raw,
+          lastActiveAt: raw.lastActiveAt ?? raw.createdAt,
           seats: Array.from({ length: PLAYER_COUNT }, (_, i) => raw.seats?.[i] ?? null),
           rules: loadGameRules(raw.rules as Partial<GameRules> | undefined),
         };

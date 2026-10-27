@@ -31,6 +31,7 @@ import {
 import { GameRules, PLAYER_COUNT, VCNV_OBSTACLE_INDEX, VCNV_ROW_COUNT } from '../game.rules';
 import { LogLevel } from '../logger';
 import { ExcelImportService } from '../services/excel-import.service';
+import { QuotaError } from '../services/legion-file.service';
 import { publicConfig } from './config.routes';
 import { identityOf, param, requireAuth, roomOf } from './middleware';
 import type { ApiDeps } from './index';
@@ -246,7 +247,9 @@ export function createMatchRoutes(deps: ApiDeps): Router {
           return;
         }
         try {
-          const result = await room.legionFiles.importArchive(file.buffer);
+          const result = await room.legionFiles.importArchive(file.buffer, {
+            maxMediaBytes: room.quotaRemaining(config.roomMediaQuotaBytes),
+          });
           room.channel.emit('update-config', publicConfig(room, config));
           room.channel.emit(MATCH_UPDATE_EVENT, room.store.getMatch());
           for (const kind of ROUND_KINDS) {
@@ -254,6 +257,11 @@ export function createMatchRoutes(deps: ApiDeps): Router {
           }
           res.json(result);
         } catch (importErr) {
+          if (importErr instanceof QuotaError) {
+            const error: ApiError = { error: 'Room storage is full' };
+            res.status(413).json(error);
+            return;
+          }
           log(importErr, LogLevel.Error);
           serverError(res, importErr);
         }

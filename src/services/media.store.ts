@@ -1,5 +1,5 @@
 import { randomBytes } from 'crypto';
-import { existsSync, mkdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'fs';
 import { basename, dirname, isAbsolute, join, resolve, sep } from 'path';
 
 /** 3 random bytes = 6-char hex prefix keeping uploaded names collision-free. */
@@ -29,6 +29,8 @@ const OBSTACLE_DIR = '_obstacle';
  * so pre-rewrite question files keep working.
  */
 export class MediaStore {
+  private cachedUsageBytes: number | undefined;
+
   constructor(
     private readonly mediaDir: string,
     /** Backend static assets dir (holds the picture/audio/video-questions roots). */
@@ -36,6 +38,23 @@ export class MediaStore {
     /** Operator-uploaded brand overrides, served before bundled assets. */
     private readonly assetsOverrideDir: string,
   ) {}
+
+  /** Total size of managed media, including protected obstacle pieces. */
+  usageBytes(): number {
+    if (this.cachedUsageBytes !== undefined) return this.cachedUsageBytes;
+    const sizeOf = (dir: string): number => {
+      if (!existsSync(dir)) return 0;
+      let total = 0;
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) total += sizeOf(path);
+        else if (entry.isFile()) total += statSync(path).size;
+      }
+      return total;
+    };
+    this.cachedUsageBytes = sizeOf(this.mediaDir);
+    return this.cachedUsageBytes;
+  }
 
   /**
    * Store an uploaded file under a sanitized, random-prefixed name.
@@ -110,7 +129,11 @@ export class MediaStore {
       throw new Error('Invalid brand asset path');
     }
     mkdirSync(dirname(target), { recursive: true });
-    writeFileSync(target, buffer);
+    try {
+      writeFileSync(target, buffer);
+    } finally {
+      this.cachedUsageBytes = undefined;
+    }
     return relativePath;
   }
 
@@ -120,7 +143,15 @@ export class MediaStore {
     }
     const dir = join(this.mediaDir, kind);
     mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, fileName), buffer);
+    const target = join(dir, fileName);
+    const previousSize = this.cachedUsageBytes !== undefined && existsSync(target) ? statSync(target).size : 0;
+    try {
+      writeFileSync(target, buffer);
+      if (this.cachedUsageBytes !== undefined) this.cachedUsageBytes += buffer.length - previousSize;
+    } catch (err) {
+      this.cachedUsageBytes = undefined;
+      throw err;
+    }
   }
 }
 

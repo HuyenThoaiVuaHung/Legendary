@@ -11,6 +11,7 @@ import { AccountStore } from './services/account.store';
 import { AuthService } from './services/auth.service';
 import { SessionStore } from './services/session.store';
 import { createApiRouter, mountFrontend } from './http';
+import { createClientIp } from './http/client-ip';
 import { registerSockets } from './sockets';
 
 const config = loadConfig();
@@ -40,6 +41,9 @@ if (config.multiRoom) {
 }
 
 const app = express();
+app.set('trust proxy', config.trustProxy);
+log(`Trust proxy: ${config.trustProxy}`, config.trustProxy === false ? LogLevel.Info : LogLevel.Warn);
+const clientIp = createClientIp(config.trustProxy);
 app.use(cors({ origin: '*' }));
 app.use(compression());
 app.use(express.json());
@@ -52,7 +56,15 @@ const rooms = new RoomRegistry(io, config, sessions, log);
 app.use(createApiRouter({ rooms, auth, accounts, log, config }));
 mountFrontend(app, config.frontendDir, config.assetsDir, config.assetsOverrideDir);
 
-registerSockets({ io, rooms, auth, log, multiRoom: config.multiRoom });
+registerSockets({
+  io,
+  rooms,
+  auth,
+  log,
+  multiRoom: config.multiRoom,
+  clientIp,
+  maxSocketsPerIp: config.maxSocketsPerIp,
+});
 
 httpServer.listen(config.port, () => {
   log('Server Legendary khởi động thành công, đang chờ kết nối mới…');

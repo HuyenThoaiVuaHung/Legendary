@@ -132,9 +132,20 @@ export function createMediaRoutes(deps: ApiDeps): Router {
       ? API_PATHS.mediaFile(kind, fileName)
       : API_PATHS.roomMediaFile(room.id, kind, fileName);
 
-  router.post('/api/media/:kind', adminOnly, (req, res) => {
+  const exceedsQuota = (room: Room, file: Express.Multer.File, res: Response): boolean => {
+    if (file.buffer.length <= room.quotaRemaining(config.roomMediaQuotaBytes)) return false;
+    const error: ApiError = { error: 'Room storage is full' };
+    res.status(413).json(error);
+    return true;
+  };
+
+  router.post('/api/media/:kind', adminOnly, (req, res, next) => {
     const room = roomOf(req);
     const kind = param(req, 'kind');
+    if (kind === 'obstacle-piece') {
+      next('route');
+      return;
+    }
     if (!MEDIA_KINDS.includes(kind)) {
       badRequest(res, `Unknown media kind: ${kind}`);
       return;
@@ -143,6 +154,7 @@ export function createMediaRoutes(deps: ApiDeps): Router {
       if (handleMulterError(err, res)) return;
       const file = validateUpload(req, res);
       if (!file) return;
+      if (exceedsQuota(room, file, res)) return;
       const saved = room.media.save(kind, file.originalname, file.buffer);
       const response: MediaUploadResponse = {
         fileName: saved.fileName,
@@ -163,6 +175,7 @@ export function createMediaRoutes(deps: ApiDeps): Router {
       const file = validateBrandAssetUpload(req, res);
       if (!file) return;
       const room = roomOf(req);
+      if (exceedsQuota(room, file, res)) return;
       const ui = room.ui.get();
       ui.miscImageSrcNames[slot] = room.media.save('misc', file.originalname, file.buffer).fileName;
       room.ui.set(ui);
@@ -219,6 +232,7 @@ export function createMediaRoutes(deps: ApiDeps): Router {
       if (handleMulterError(err, res)) return;
       const file = validateUpload(req, res);
       if (!file) return;
+      if (exceedsQuota(room, file, res)) return;
       const fileName = room.media.saveObstaclePiece(file.originalname, file.buffer);
       const response: MediaUploadResponse = {
         fileName,
