@@ -15,8 +15,10 @@ export interface ServerConfig {
   mediaDir: string;
   /** Directory the built Legion frontend is served from. */
   frontendDir: string;
-  /** Directory of static UI images, served at /assets. */
+  /** Directory of the bundled Legion brand images, served at /assets. */
   assetsDir: string;
+  /** User-provided assets that override the bundled brand images at /assets. */
+  assetsOverrideDir: string;
   saveLog: boolean;
   uploadLimitBytes: number;
   tokenTtlSeconds: number;
@@ -37,6 +39,7 @@ const DEFAULTS = {
   mediaDir: 'match_data/media',
   frontendDir: 'Legion',
   assetsDir: 'assets',
+  assetsOverrideDir: 'match_data/assets',
   saveLog: false,
   uploadLimitMb: 100,
   tokenTtlSeconds: 24 * 60 * 60,
@@ -64,6 +67,7 @@ export function loadConfig(): ServerConfig {
     mediaDir: str('mediaDir', DEFAULTS.mediaDir),
     frontendDir: str('frontendDir', DEFAULTS.frontendDir),
     assetsDir: str('assetsDir', DEFAULTS.assetsDir),
+    assetsOverrideDir: str('assetsOverrideDir', DEFAULTS.assetsOverrideDir),
     saveLog: Boolean(fileConfig['saveLog'] ?? DEFAULTS.saveLog),
     uploadLimitBytes: num('uploadLimitMb', DEFAULTS.uploadLimitMb) * BYTES_PER_MB,
     tokenTtlSeconds: num('tokenTtlSeconds', DEFAULTS.tokenTtlSeconds),

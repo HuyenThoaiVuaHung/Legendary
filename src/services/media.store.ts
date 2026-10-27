@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto';
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
-import { basename, isAbsolute, join, resolve } from 'path';
+import { basename, dirname, isAbsolute, join, resolve, sep } from 'path';
 
 /** 3 random bytes = 6-char hex prefix keeping uploaded names collision-free. */
 const RANDOM_PREFIX_BYTES = 3;
@@ -33,6 +33,8 @@ export class MediaStore {
     private readonly mediaDir: string,
     /** Backend static assets dir (holds the picture/audio/video-questions roots). */
     private readonly assetsDir: string,
+    /** Operator-uploaded brand overrides, served before bundled assets. */
+    private readonly assetsOverrideDir: string,
   ) {}
 
   /**
@@ -94,6 +96,22 @@ export class MediaStore {
     if (!isSafePathSegment(name)) return undefined;
     const candidate = join(this.mediaDir, OBSTACLE_DIR, name);
     return existsSync(candidate) ? resolve(candidate) : undefined;
+  }
+
+  /**
+   * Replace one known brand asset in the user override layer. The route passes
+   * only a server-owned relative path; the containment check is defensive so
+   * this low-level store remains safe if another caller is added later.
+   */
+  saveBrandAsset(relativePath: string, buffer: Buffer): string {
+    const root = resolve(this.assetsOverrideDir);
+    const target = resolve(root, relativePath);
+    if (!target.startsWith(`${root}${sep}`)) {
+      throw new Error('Invalid brand asset path');
+    }
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, buffer);
+    return relativePath;
   }
 
   private write(kind: string, fileName: string, buffer: Buffer): void {

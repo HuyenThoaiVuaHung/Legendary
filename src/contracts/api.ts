@@ -58,16 +58,22 @@ export interface ApiError {
   error: string;
 }
 
+/** Mutable brand assets that safely override the bundled Legion defaults. */
+export const BRAND_ASSET_KEYS = ['logo', 'wordmark', 'placeholder', 'icon'] as const;
+export type BrandAssetKey = (typeof BRAND_ASSET_KEYS)[number];
+
 /** Multipart field name used by all upload endpoints. */
 export const UPLOAD_FIELD = 'file';
 
 export const API_PATHS = {
   login: '/api/auth/login',
+  config: '/api/config',
   match: '/api/match',
   matchPosition: '/api/match/position',
   matchPlayer: (index: number) => `/api/match/players/${index}`,
   round: (kind: RoundKind) => `/api/rounds/${kind}`,
   media: (kind: RoundKind | 'misc') => `/api/media/${kind}`,
+  brandAsset: (key: BrandAssetKey) => `/api/assets/${key}`,
   mediaFile: (kind: RoundKind | 'misc', name: string) =>
     `/media/${kind}/${encodeURIComponent(name)}`,
   /** Admin uploads a single VCNV obstacle reveal piece to the protected store. */

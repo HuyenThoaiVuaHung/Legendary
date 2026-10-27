@@ -9,7 +9,14 @@
 import { Response, Router } from 'express';
 import multer from 'multer';
 import { resolve } from 'path';
-import { ApiError, MediaUploadResponse, Role, UPLOAD_FIELD } from '../contracts/api';
+import {
+  ApiError,
+  BRAND_ASSET_KEYS,
+  BrandAssetKey,
+  MediaUploadResponse,
+  Role,
+  UPLOAD_FIELD,
+} from '../contracts/api';
 import { ROUND_KINDS } from '../contracts/game';
 import { VCNV_OBSTACLE_INDEX, VCNV_PIECE_COUNT } from '../game.rules';
 import { identityOf, requireAuth } from './middleware';
@@ -25,6 +32,14 @@ const ALLOWED_EXTENSIONS: ReadonlySet<string> = new Set([
   'mp3', 'wav', 'ogg', 'm4a', 'flac',
   'mp4', 'webm', 'mkv', 'mov',
 ]);
+
+/** Fixed destinations keep overrides inside the recognised Legion brand set. */
+const BRAND_ASSET_PATHS: Readonly<Record<BrandAssetKey, string>> = {
+  logo: 'misc/logo.png',
+  wordmark: 'misc/legion.png',
+  placeholder: 'misc/placeholder.png',
+  icon: 'misc/icon.png',
+};
 
 function badRequest(res: Response, message: string): void {
   const error: ApiError = { error: message };
@@ -59,6 +74,21 @@ export function createMediaRoutes(deps: ApiDeps): Router {
     return file;
   };
 
+  const validateBrandAssetUpload = (
+    req: import('express').Request,
+    res: Response,
+  ): Express.Multer.File | null => {
+    const file = validateUpload(req, res);
+    if (!file) return null;
+    const extension = file.originalname.split('.').pop()?.toLowerCase();
+    if (file.mimetype !== 'image/png' || extension !== 'png') {
+      const error: ApiError = { error: 'Ảnh phải là PNG.' };
+      res.status(415).json(error);
+      return null;
+    }
+    return file;
+  };
+
   const handleMulterError = (err: unknown, res: Response): boolean => {
     if (!err) return false;
     if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
@@ -82,6 +112,24 @@ export function createMediaRoutes(deps: ApiDeps): Router {
       if (!file) return;
       const saved: MediaUploadResponse = media.save(kind, file.originalname, file.buffer);
       res.json(saved);
+    });
+  });
+
+  // Brand assets have server-owned destinations and override the bundled
+  // defaults at /assets. PNG-only keeps URLs and declared content types stable.
+  router.post('/api/assets/:key', adminOnly, (req, res) => {
+    const key = req.params.key as BrandAssetKey;
+    if (!(BRAND_ASSET_KEYS as readonly string[]).includes(key)) {
+      badRequest(res, `Unknown brand asset: ${req.params.key}`);
+      return;
+    }
+    upload.single(UPLOAD_FIELD)(req, res, (err: unknown) => {
+      if (handleMulterError(err, res)) return;
+      const file = validateBrandAssetUpload(req, res);
+      if (!file) return;
+      const fileName = media.saveBrandAsset(BRAND_ASSET_PATHS[key], file.buffer);
+      const response: MediaUploadResponse = { fileName, url: `/assets/${fileName}` };
+      res.json(response);
     });
   });
 

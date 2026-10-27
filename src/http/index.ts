@@ -39,15 +39,26 @@ export function createApiRouter(deps: ApiDeps): Router {
 }
 
 /**
- * Serve the backend-hosted static images (moved out of the frontend bundle)
- * at /assets, then the built Legion frontend, and finally the SPA fallback.
- * express.static calls next() on a miss, so /assets/audio-assets/* (still
- * bundled with the frontend) falls through to the frontend static handler.
+ * Serve /assets, then the built Legion frontend, then the SPA fallback.
+ *
+ * /assets is layered: a user-provided override dir is tried first, so operators
+ * can replace the Legion brand images (logo, icon, placeholder) or add their own
+ * assets simply by dropping files there; the bundled brand assets are the
+ * defaults behind it. express.static calls next() on a miss, so each layer
+ * falls through — and /assets/audio-assets/* (still bundled with the frontend)
+ * falls all the way through to the frontend static handler.
+ *
  * The GET-only SPA catch-all is registered last so it never shadows /api/*,
  * /media/*, or /assets/* — never use `app.use('*')` before the static handlers.
  */
-export function mountFrontend(app: Express, frontendDir: string, assetsDir: string): void {
+export function mountFrontend(
+  app: Express,
+  frontendDir: string,
+  assetsDir: string,
+  assetsOverrideDir: string,
+): void {
   const root = resolve(frontendDir);
+  app.use('/assets', express.static(resolve(assetsOverrideDir)));
   app.use('/assets', express.static(resolve(assetsDir)));
   app.use(express.static(root));
   app.get('*', (_req, res) => {

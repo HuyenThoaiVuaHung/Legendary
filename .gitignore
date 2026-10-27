@@ -142,3 +142,6 @@ match_data/round_data/vcnv.json
 match_data/round_data/tt.json
 match_data/round_data/vd.json
 match_data/round_data/chp.json
+
+# User-provided asset overrides (runtime)
+match_data/assets/
