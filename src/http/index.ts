@@ -8,6 +8,7 @@
 import express, { Express, Router } from 'express';
 import { join, resolve } from 'path';
 import { ServerConfig } from '../config';
+import { ApiError } from '../contracts/api';
 import { LogFn } from '../logger';
 import { RoomRegistry } from '../rooms/room.registry';
 import { AccountStore } from '../services/account.store';
@@ -73,6 +74,11 @@ export function mountFrontend(
   assetsOverrideDir: string,
 ): void {
   const root = resolve(frontendDir);
+  // Unknown API paths are a JSON 404, never the SPA's index.html.
+  app.use(['/api', '/rooms'], (_req, res) => {
+    const error: ApiError = { error: 'Not found' };
+    res.status(404).json(error);
+  });
   app.use('/assets', express.static(resolve(assetsOverrideDir)));
   app.use('/assets', express.static(resolve(assetsDir)));
   app.use(express.static(root));
