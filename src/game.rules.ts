@@ -55,18 +55,95 @@ export const DEFAULT_GAME_RULES: GameRules = {
   chpCorrectPoints: 1,
 };
 
-/** Merge operator overrides over the defaults into a frozen rules object. */
+/**
+ * Merge operator overrides over the defaults into a rules object.
+ * Deliberately NOT frozen: the live settings menu mutates this shared object
+ * in place (via applyRuleOverrides) so running handlers pick up new values.
+ */
 export function loadGameRules(overrides?: Partial<GameRules>): GameRules {
-  return Object.freeze({
-    ...DEFAULT_GAME_RULES,
-    ...overrides,
-    obstacleValueByRevealedCount: {
-      ...DEFAULT_GAME_RULES.obstacleValueByRevealedCount,
-      ...overrides?.obstacleValueByRevealedCount,
-    },
-    ttPointsByPlacement:
-      overrides?.ttPointsByPlacement ?? DEFAULT_GAME_RULES.ttPointsByPlacement,
-  });
+  const rules: GameRules = { ...DEFAULT_GAME_RULES, ...overrides };
+  rules.obstacleValueByRevealedCount = {
+    ...DEFAULT_GAME_RULES.obstacleValueByRevealedCount,
+    ...overrides?.obstacleValueByRevealedCount,
+  };
+  rules.ttPointsByPlacement = [
+    ...(overrides?.ttPointsByPlacement ?? DEFAULT_GAME_RULES.ttPointsByPlacement),
+  ];
+  return rules;
+}
+
+interface NumericRuleConstraint {
+  minimum: number;
+}
+
+/** Numeric rule fields that the settings menu may edit, with safe lower bounds. */
+export const TUNABLE_NUMBER_FIELDS = {
+  mainClockTickMs: { minimum: 1 },
+  decisionTickMs: { minimum: 1 },
+  kdCorrectPoints: { minimum: 0 },
+  kdWrongPenalty: { minimum: 0 },
+  kdDecisionTicks: { minimum: 1 },
+  kdClockStartDelayMs: { minimum: 0 },
+  vcnvRowPoints: { minimum: 0 },
+  vdStealTicks: { minimum: 1 },
+  vdWrongPenaltyDivisor: { minimum: 1 },
+  vdHopeStarMultiplier: { minimum: 1 },
+  chpTurnSeconds: { minimum: 1 },
+  chpCorrectPoints: { minimum: 0 },
+} as const satisfies Record<
+  Exclude<keyof GameRules, 'playerCount' | 'obstacleValueByRevealedCount' | 'ttPointsByPlacement'>,
+  NumericRuleConstraint
+>;
+
+/**
+ * Apply a partial update onto an existing rules object, in place. Structural
+ * values (the player count and board geometry) are deliberately excluded.
+ * Invalid values are ignored and never persisted or broadcast.
+ */
+export function applyRuleOverrides(rules: GameRules, patch: Partial<GameRules>): string[] {
+  const changed: string[] = [];
+
+  for (const [field, constraint] of Object.entries(TUNABLE_NUMBER_FIELDS) as [
+    keyof typeof TUNABLE_NUMBER_FIELDS,
+    NumericRuleConstraint,
+  ][]) {
+    const value = patch[field];
+    if (typeof value === 'number' && Number.isFinite(value) && value >= constraint.minimum) {
+      rules[field] = value;
+      changed.push(field);
+    }
+  }
+
+  if (Array.isArray(patch.ttPointsByPlacement)) {
+    const points = patch.ttPointsByPlacement;
+    const valid =
+      points.length === PLAYER_COUNT &&
+      points.every((value) => Number.isFinite(value) && value >= 0);
+    if (valid) {
+      rules.ttPointsByPlacement = [...points];
+      changed.push('ttPointsByPlacement');
+    }
+  }
+
+  if (patch.obstacleValueByRevealedCount && typeof patch.obstacleValueByRevealedCount === 'object') {
+    let updated = false;
+    for (const [key, value] of Object.entries(patch.obstacleValueByRevealedCount)) {
+      const revealedCount = Number(key);
+      if (
+        Number.isInteger(revealedCount) &&
+        revealedCount >= 0 &&
+        revealedCount <= VCNV_ROW_COUNT &&
+        Number.isFinite(value) &&
+        value >= 0
+      ) {
+        rules.obstacleValueByRevealedCount[revealedCount] = value;
+        updated = true;
+      }
+    }
+    if (updated) changed.push('obstacleValueByRevealedCount');
+  }
+
+  return changed;
 }
 
 // --------------------------------------------------------- structural invariants
