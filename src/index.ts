@@ -67,12 +67,16 @@ registerSockets({
   maxSpectatorsPerRoom: config.maxSpectatorsPerRoom,
 });
 
+const HTTP_DEFAULT_PORT = 80;
+/** Printed addresses must include the port, or browsers try :80. */
+const portSuffix = config.port === HTTP_DEFAULT_PORT ? '' : `:${config.port}`;
+
 httpServer.listen(config.port, () => {
   log('Server Legendary khởi động thành công, đang chờ kết nối mới…');
   for (const interfaces of Object.values(networkInterfaces())) {
     for (const net of interfaces ?? []) {
       if (net.family === 'IPv4' && !net.internal) {
-        log(`Địa chỉ IP của máy chủ: http://${net.address}`, LogLevel.Warn);
+        log(`Địa chỉ IP của máy chủ: http://${net.address}${portSuffix}`, LogLevel.Warn);
       }
     }
   }
