@@ -1,0 +1,97 @@
+name: Package Legendary Distribution
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: SemVer without the v prefix (for example 2.1.0)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Assemble self-hosted distribution
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ inputs.version }}
+      FRONTEND_DIR: _release/Legion
+    steps:
+      - name: Check out Legendary main
+        uses: actions/checkout@v4
+
+      - name: Check out matching Legion tag
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/Legion
+          ref: v${{ inputs.version }}
+          path: _release/Legion
+
+      - name: Validate release train
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Version must be SemVer, e.g. 2.1.0" >&2
+            exit 1
+          fi
+          test "$(node -p "require('./package.json').version")" = "$VERSION"
+          test "$(node -p "require('./$FRONTEND_DIR/package.json').version")" = "$VERSION"
+          test "$(git -C "$FRONTEND_DIR" describe --exact-match --tags HEAD)" = "v$VERSION"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.3
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install Legendary dependencies
+        run: npm ci
+
+      - name: Type-check and build Legendary
+        run: |
+          npm run typecheck
+          npm run build
+
+      - name: Install Legion dependencies
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: npm ci
+
+      # Build-only release policy: no test command runs here.
+      - name: Build Legion browser client
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: npm run build
+
+      - name: Assemble portable release archive
+        run: |
+          rm -rf Legion release
+          mkdir -p "release/legendary-v$VERSION"
+          cp package.json package-lock.json "release/legendary-v$VERSION/"
+          cp -R dist assets "release/legendary-v$VERSION/"
+          mkdir -p Legion
+          cp -R "$FRONTEND_DIR/dist/Legion/." Legion/
+          cp -R Legion "release/legendary-v$VERSION/Legion"
+          cat > "release/legendary-v$VERSION/release-manifest.json" <<EOF
+          {
+            "version": "$VERSION",
+            "backend": { "repository": "$GITHUB_REPOSITORY", "commit": "$GITHUB_SHA" },
+            "frontend": {
+              "repository": "${{ github.repository_owner }}/Legion",
+              "tag": "v$VERSION",
+              "commit": "$(git -C "$FRONTEND_DIR" rev-parse HEAD)"
+            },
+            "node": "22.22.3",
+            "persistentDataDirectory": "match_data"
+          }
+          EOF
+          tar -C release -czf "legendary-v$VERSION.tar.gz" "legendary-v$VERSION"
+
+      - name: Upload release archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: legendary-v${{ inputs.version }}
+          path: legendary-v${{ inputs.version }}.tar.gz
+          if-no-files-found: error
+          retention-days: 90
