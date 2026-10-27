@@ -40,6 +40,23 @@ export interface ServerConfig {
   multiRoom: boolean;
   /** Host usernames allowed to change server-wide defaults (multiRoom). */
   serverAdmins: string[];
+  /**
+   * Express 'trust proxy': false (default), a hop count, or address/subnet
+   * names ('loopback', '10.0.0.0/8'). `true` is refused: it would trust any
+   * client-sent X-Forwarded-For and defeat every per-IP limit.
+   */
+  trustProxy: false | number | string;
+  /** Live socket connections allowed per client IP (IPv6 grouped by /56). */
+  maxSocketsPerIp: number;
+  /** Media bytes a created room may store (0 = unlimited). */
+  roomMediaQuotaBytes: number;
+  /** A created room with no activity for this long is deleted. */
+  roomIdleTtlSeconds: number;
+  /** Hard lifetime of a created room, regardless of activity. */
+  roomMaxTtlSeconds: number;
+  roomSweepIntervalSeconds: number;
+  /** Warn a room's sockets ('room-expiring') this long before it expires. */
+  roomExpiryWarningSeconds: number;
   /** Server-side session records (hashed tokens). */
   sessionsPath: string;
   sessionIdleTtlSeconds: number;
@@ -79,6 +96,12 @@ const DEFAULTS = {
   saveLog: false,
   uploadLimitMb: 100,
   multiRoom: false,
+  maxSocketsPerIp: 20,
+  roomMediaQuotaBytes: 1024 * 1024 * 1024,
+  roomIdleTtlSeconds: 24 * 60 * 60,
+  roomMaxTtlSeconds: 7 * 24 * 60 * 60,
+  roomSweepIntervalSeconds: 5 * 60,
+  roomExpiryWarningSeconds: 60 * 60,
   sessionsPath: 'match_data/sessions.json',
   sessionIdleTtlSeconds: 7 * 24 * 60 * 60,
   sessionMaxTtlSeconds: 30 * 24 * 60 * 60,
@@ -136,6 +159,13 @@ export function loadConfig(): ServerConfig {
       process.env['LEGENDARY_SERVERADMINS']?.split(',').map((name) => name.trim()).filter(Boolean) ??
       (fileConfig['serverAdmins'] as string[] | undefined) ??
       [],
+    trustProxy: parseTrustProxy(process.env['LEGENDARY_TRUSTPROXY'] ?? fileConfig['trustProxy']),
+    maxSocketsPerIp: num('maxSocketsPerIp', DEFAULTS.maxSocketsPerIp),
+    roomMediaQuotaBytes: num('roomMediaQuotaBytes', DEFAULTS.roomMediaQuotaBytes),
+    roomIdleTtlSeconds: num('roomIdleTtlSeconds', DEFAULTS.roomIdleTtlSeconds),
+    roomMaxTtlSeconds: num('roomMaxTtlSeconds', DEFAULTS.roomMaxTtlSeconds),
+    roomSweepIntervalSeconds: num('roomSweepIntervalSeconds', DEFAULTS.roomSweepIntervalSeconds),
+    roomExpiryWarningSeconds: num('roomExpiryWarningSeconds', DEFAULTS.roomExpiryWarningSeconds),
     sessionsPath: str('sessionsPath', DEFAULTS.sessionsPath),
     sessionIdleTtlSeconds: num('sessionIdleTtlSeconds', DEFAULTS.sessionIdleTtlSeconds),
     sessionMaxTtlSeconds: num('sessionMaxTtlSeconds', DEFAULTS.sessionMaxTtlSeconds),
@@ -157,4 +187,22 @@ export function usesDefaultSecrets(config: ServerConfig): boolean {
     config.mcSecret === DEFAULTS.mcSecret ||
     config.playerSecrets.some((secret) => (DEFAULTS.playerSecrets as readonly string[]).includes(secret))
   );
+}
+
+/**
+ * Parse the trust-proxy setting from env (string) or config.json (any).
+ * Unset/'false' → false; digits → hop count; other strings pass through.
+ * `true` is refused outright (see ServerConfig.trustProxy).
+ */
+function parseTrustProxy(raw: unknown): false | number | string {
+  if (raw === undefined || raw === null || raw === false || raw === 'false' || raw === '') return false;
+  if (raw === true || raw === 'true') {
+    throw new Error(
+      'trustProxy: true is unsafe (clients could spoof their IP). Use a hop count such as 1, ' +
+        "or the proxy's address, e.g. 'loopback'.",
+    );
+  }
+  if (typeof raw === 'number') return raw;
+  const text = String(raw).trim();
+  return /^\d+$/.test(text) ? Number(text) : text;
 }
