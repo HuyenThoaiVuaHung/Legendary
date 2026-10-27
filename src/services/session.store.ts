@@ -26,6 +26,7 @@ export interface SessionRecord {
   index?: number;
   /** Account sessions, and room sessions a host entered from their account. */
   accountId?: string;
+  linkId?: string;
   createdAt: number;
   lastSeenAt: number;
 }

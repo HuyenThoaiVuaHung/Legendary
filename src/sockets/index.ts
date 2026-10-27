@@ -43,11 +43,13 @@ export interface SocketDeps {
   multiRoom: boolean;
   clientIp: (req: IncomingMessage) => string;
   maxSocketsPerIp: number;
+  maxSpectatorsPerRoom: number;
 }
 
 export function registerSockets(deps: SocketDeps): void {
-  const { io, rooms, auth, log, multiRoom, clientIp, maxSocketsPerIp } = deps;
+  const { io, rooms, auth, log, multiRoom, clientIp, maxSocketsPerIp, maxSpectatorsPerRoom } = deps;
   const socketCounts = new Map<string, number>();
+  const viewerCounts = new Map<string, number>();
 
   // Handshake: resolve the token to an identity. An absent or invalid token
   // simply yields a viewer of the default room, matching the old
@@ -70,6 +72,19 @@ export function registerSockets(deps: SocketDeps): void {
     if (!rooms.get(roomId)) {
       next(new Error('Unknown room'));
       return;
+    }
+    if (roomId !== DEFAULT_ROOM_ID && identity.roleId === Role.Viewer &&
+      (viewerCounts.get(roomId) ?? 0) >= maxSpectatorsPerRoom) {
+      next(new Error('Room is full'));
+      return;
+    }
+    if (roomId !== DEFAULT_ROOM_ID && identity.roleId === Role.Viewer) {
+      viewerCounts.set(roomId, (viewerCounts.get(roomId) ?? 0) + 1);
+      socket.once('disconnect', () => {
+        const count = (viewerCounts.get(roomId) ?? 1) - 1;
+        if (count === 0) viewerCounts.delete(roomId);
+        else viewerCounts.set(roomId, count);
+      });
     }
     socket.data.identity = identity;
     next();

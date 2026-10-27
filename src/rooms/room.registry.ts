@@ -119,12 +119,15 @@ export class RoomRegistry {
       admin: randomBytes(ADMIN_SECRET_BYTES).toString('base64url'),
       mc: typeable(MC_SECRET_LENGTH),
       player: typeable(PLAYER_SECRET_LENGTH),
+      spectator: typeable(MC_SECRET_LENGTH),
     };
     const createdAt = Date.now();
     const meta: RoomMeta = {
       code,
       ownerAccountId,
       secrets,
+      spectatorMode: 'open',
+      links: [],
       seats: Array(PLAYER_COUNT).fill(null),
       // A snapshot of the server rules: per-room edits never leak elsewhere.
       rules: loadGameRules(this.config.rules),
@@ -256,10 +259,14 @@ export class RoomRegistry {
         const meta: RoomMeta = {
           ...raw,
           lastActiveAt: raw.lastActiveAt ?? raw.createdAt,
+          spectatorMode: raw.spectatorMode ?? 'open',
+          links: raw.links ?? [],
+          secrets: { ...raw.secrets, spectator: raw.secrets.spectator ?? typeable(MC_SECRET_LENGTH) },
           seats: Array.from({ length: PLAYER_COUNT }, (_, i) => raw.seats?.[i] ?? null),
           rules: loadGameRules(raw.rules as Partial<GameRules> | undefined),
         };
-        this.open(entry.name, meta);
+        const room = this.open(entry.name, meta);
+        this.saveMeta(room);
       } catch (err) {
         this.log(`Skipping unreadable room ${entry.name}: ${String(err)}`, LogLevel.Warn);
       }

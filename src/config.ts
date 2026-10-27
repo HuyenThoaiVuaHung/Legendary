@@ -48,6 +48,7 @@ export interface ServerConfig {
   trustProxy: false | number | string;
   /** Live socket connections allowed per client IP (IPv6 grouped by /56). */
   maxSocketsPerIp: number;
+  maxSpectatorsPerRoom: number;
   /** Media bytes a created room may store (0 = unlimited). */
   roomMediaQuotaBytes: number;
   /** A created room with no activity for this long is deleted. */
@@ -97,6 +98,7 @@ const DEFAULTS = {
   uploadLimitMb: 100,
   multiRoom: false,
   maxSocketsPerIp: 20,
+  maxSpectatorsPerRoom: 200,
   roomMediaQuotaBytes: 1024 * 1024 * 1024,
   roomIdleTtlSeconds: 24 * 60 * 60,
   roomMaxTtlSeconds: 7 * 24 * 60 * 60,
@@ -161,6 +163,7 @@ export function loadConfig(): ServerConfig {
       [],
     trustProxy: parseTrustProxy(process.env['LEGENDARY_TRUSTPROXY'] ?? fileConfig['trustProxy']),
     maxSocketsPerIp: num('maxSocketsPerIp', DEFAULTS.maxSocketsPerIp),
+    maxSpectatorsPerRoom: num('maxSpectatorsPerRoom', DEFAULTS.maxSpectatorsPerRoom),
     roomMediaQuotaBytes: num('roomMediaQuotaBytes', DEFAULTS.roomMediaQuotaBytes),
     roomIdleTtlSeconds: num('roomIdleTtlSeconds', DEFAULTS.roomIdleTtlSeconds),
     roomMaxTtlSeconds: num('roomMaxTtlSeconds', DEFAULTS.roomMaxTtlSeconds),

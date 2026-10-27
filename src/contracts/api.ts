@@ -65,7 +65,36 @@ export interface RoomSecrets {
   admin: string;
   mc: string;
   player: string;
+  spectator: string;
 }
+
+export type SpectatorMode = 'open' | 'secret' | 'off';
+export type LinkRole = 'viewer' | 'mc' | 'player';
+export interface RoomLink {
+  id: string;
+  role: LinkRole;
+  view?: string;
+  label: string;
+  createdAt: number;
+  expiresAt?: number;
+  singleUse: boolean;
+  usedAt?: number;
+}
+export interface CreateRoomLinkRequest {
+  role: LinkRole;
+  view?: string;
+  label: string;
+  expiresInSeconds?: number;
+  singleUse?: boolean;
+}
+export interface CreateRoomLinkResponse { link: RoomLink; token: string; path: string }
+export type ListRoomLinksResponse = RoomLink[];
+export interface JoinLinkRequest { token: string; username?: string }
+export type JoinLinkResponse = JoinRoomResponse;
+export interface RoomSettingsRequest { spectatorMode: SpectatorMode }
+export type RoomSettingsResponse = RoomSettingsRequest;
+export interface ServerInfo { multiRoom: boolean; version: string }
+export type SessionResponse = TokenPayload;
 
 /** Current created room details; secrets are visible only to admins. */
 export interface RoomInfo {
@@ -73,6 +102,7 @@ export interface RoomInfo {
   code: string;
   expiresAt: number | null;
   seats: (string | null)[];
+  spectatorMode: SpectatorMode;
   ownerAccountId: string;
   mediaBytes: number;
   mediaQuotaBytes: number;
@@ -176,6 +206,8 @@ export type BrandAssetKey = (typeof BRAND_ASSET_KEYS)[number];
 export const UPLOAD_FIELD = 'file';
 
 export const API_PATHS = {
+  server: '/api/server',
+  session: '/api/session',
   login: '/api/auth/login',
   config: '/api/config',
   match: '/api/match',
@@ -198,6 +230,10 @@ export const API_PATHS = {
   exportLegion: '/api/match/export-legion',
   rooms: '/api/rooms',
   joinRoom: '/api/rooms/join',
+  joinLink: '/api/rooms/join-link',
+  roomSettings: '/api/rooms/current/settings',
+  roomLinks: '/api/rooms/current/links',
+  roomLink: (id: string) => `/api/rooms/current/links/${id}`,
   /** The caller's own room (from the token): DELETE closes it. */
   currentRoom: '/api/rooms/current',
   rotateSecret: '/api/rooms/current/secrets',

@@ -1,5 +1,5 @@
 import { Server } from 'socket.io';
-import { RoomSecrets } from '../contracts/api';
+import { RoomLink, RoomSecrets, SpectatorMode } from '../contracts/api';
 import { GameRules } from '../game.rules';
 import { LegionFileService } from '../services/legion-file.service';
 import { MediaStore } from '../services/media.store';
@@ -22,6 +22,8 @@ export interface RoomMeta {
   /** Host account that owns the room (created it, or received it). */
   ownerAccountId: string;
   secrets: RoomSecrets;
+  spectatorMode: SpectatorMode;
+  links: (RoomLink & { tokenHash: string })[];
   /** Username holding each player seat, in seat order; null when free. */
   seats: (string | null)[];
   /** The room's live rules; persisted so settings survive a restart. */

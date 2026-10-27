@@ -18,6 +18,7 @@ const results = new Map([
   ['bank', 'FAIL'],
   ['unsafe trust proxy', 'FAIL'],
   ['limits', 'FAIL'],
+  ['room-features', 'FAIL'],
 ]);
 let server;
 let suite;
@@ -187,6 +188,16 @@ try {
     await runSuite('limits', 'limits.mjs', [String(port), roomsDir]);
   } catch (error) {
     console.error(`Stage D: ${error.message}`);
+  } finally {
+    await stopServer();
+  }
+
+  try {
+    const port = await freePort();
+    await startServer(port, { ...env, LEGENDARY_PORT: String(port), LEGENDARY_MULTIROOM: 'true', LEGENDARY_MAXSPECTATORSPERROOM: '2', LEGENDARY_SIGNUPRATELIMIT: '50' });
+    await runSuite('room-features', 'room-features.mjs', [String(port), roomsDir]);
+  } catch (error) {
+    console.error(`Room features: ${error.message}`);
   } finally {
     await stopServer();
   }

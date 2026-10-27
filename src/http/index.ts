@@ -7,8 +7,9 @@
  */
 import express, { Express, Router } from 'express';
 import { join, resolve } from 'path';
+import { readFileSync } from 'fs';
 import { ServerConfig } from '../config';
-import { ApiError } from '../contracts/api';
+import { API_PATHS, ApiError, Role } from '../contracts/api';
 import { LogFn } from '../logger';
 import { RoomRegistry } from '../rooms/room.registry';
 import { AccountStore } from '../services/account.store';
@@ -20,7 +21,7 @@ import { createAuthRoutes } from './auth.routes';
 import { createConfigRoutes } from './config.routes';
 import { createMatchRoutes } from './match.routes';
 import { createMediaRoutes } from './media.routes';
-import { attachRoom, denyDefaultRoom } from './middleware';
+import { attachRoom, bearerToken, denyDefaultRoom } from './middleware';
 import { createRoomRoutes } from './room.routes';
 
 /** Everything the REST layer may touch, wired once in the composition root. */
@@ -36,7 +37,18 @@ export interface ApiDeps {
 export function createApiRouter(deps: ApiDeps): Router {
   const router = Router();
   const { multiRoom } = deps.config;
+  router.get(API_PATHS.server, (_req, res) => {
+    const pkg = JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8')) as { version: string };
+    res.json({ multiRoom, version: pkg.version });
+  });
   router.use(['/api', '/media', '/rooms'], attachRoom(deps.auth, deps.rooms));
+  router.get(API_PATHS.session, denyDefaultRoom(multiRoom), (req, res) => {
+    const identity = deps.auth.verifyToken(bearerToken(req));
+    const result: { roleId: Role; index?: number; roomId?: string } = { roleId: identity?.roleId ?? Role.Viewer };
+    if (identity?.index !== undefined) result.index = identity.index;
+    if (identity?.roomId !== undefined) result.roomId = identity.roomId;
+    res.json(result);
+  });
   if (multiRoom) {
     // Hosted: host accounts + rooms; the legacy secret login does not exist.
     router.use(createAccountRoutes(deps, deps.accounts));

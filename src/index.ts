@@ -64,6 +64,7 @@ registerSockets({
   multiRoom: config.multiRoom,
   clientIp,
   maxSocketsPerIp: config.maxSocketsPerIp,
+  maxSpectatorsPerRoom: config.maxSpectatorsPerRoom,
 });
 
 httpServer.listen(config.port, () => {

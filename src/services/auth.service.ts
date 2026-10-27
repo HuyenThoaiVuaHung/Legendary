@@ -45,11 +45,12 @@ export class AuthService {
   }
 
   /** Start a room session; returns its bearer token. */
-  issueToken(payload: TokenPayload & { accountId?: string }): string {
+  issueToken(payload: TokenPayload & { accountId?: string; linkId?: string }): string {
     const session: Omit<SessionRecord, 'createdAt' | 'lastSeenAt'> = { roleId: payload.roleId };
     if (payload.index !== undefined) session.index = payload.index;
     if (payload.roomId !== undefined) session.roomId = payload.roomId;
     if (payload.accountId !== undefined) session.accountId = payload.accountId;
+    if (payload.linkId !== undefined) session.linkId = payload.linkId;
     return this.sessions.create(session);
   }
 
