@@ -21,10 +21,10 @@ jobs:
       FRONTEND_DIR: _release/Legion
     steps:
       - name: Check out Legendary main
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Check out matching Legion tag
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.repository_owner }}/Legion
           ref: v${{ inputs.version }}
