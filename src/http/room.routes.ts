@@ -35,7 +35,7 @@ import {
 import { Room } from '../rooms/room';
 import { DEFAULT_ROOM_ID } from '../rooms/room.registry';
 import { AccountStore } from '../services/account.store';
-import { AuthedRequest, accountOf, bearerToken, requireAccount, requireAuth, roomOf } from './middleware';
+import { AuthedRequest, accountOf, bearerToken, param, requireAccount, requireAuth, roomOf } from './middleware';
 import type { ApiDeps } from './index';
 
 const MS_PER_SECOND = 1000;
@@ -130,7 +130,7 @@ export function createRoomRoutes(deps: ApiDeps, accounts: AccountStore): Router 
 
   router.post('/api/rooms/:roomId/enter', hostOnly, (req, res) => {
     const { accountId } = accountOf(req);
-    const room = rooms.get(req.params.roomId);
+    const room = rooms.get(param(req, 'roomId'));
     if (!room?.meta || room.meta.ownerAccountId !== accountId) {
       // Same answer for "missing" and "not yours": don't confirm room ids.
       fail(res, 404, 'No such room');

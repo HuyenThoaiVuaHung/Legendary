@@ -9,7 +9,7 @@
  * POST /api/accounts/logout  — end this account session.
  * GET  /api/accounts/me      — profile + owned rooms.
  */
-import { Request, RequestHandler, Response, Router } from 'express';
+import { Response, Router } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import {
   AccountCredentials,
@@ -34,16 +34,6 @@ const MS_PER_SECOND = 1000;
 function fail(res: Response, status: number, message: string): void {
   const error: ApiError = { error: message };
   res.status(status).json(error);
-}
-
-/**
- * Express 4 does not await handlers: an async throw would become an
- * unhandled rejection and crash the process. Answer 500 instead.
- */
-function safe(handler: (req: Request, res: Response) => Promise<void>): RequestHandler {
-  return (req, res, next) => {
-    handler(req, res).catch(next);
-  };
 }
 
 /** Validation message for a password, or null when acceptable. */
@@ -78,7 +68,7 @@ export function createAccountRoutes(deps: ApiDeps, accounts: AccountStore): Rout
     username,
   });
 
-  router.post(API_PATHS.signup, signupLimiter, safe(async (req, res) => {
+  router.post(API_PATHS.signup, signupLimiter, async (req, res) => {
     const { username, password } = (req.body ?? {}) as Partial<AccountCredentials>;
     if (typeof username !== 'string' || !USERNAME_PATTERN.test(username)) {
       fail(res, 400, 'Username must be 3–32 letters, digits, dots, dashes or underscores');
@@ -100,9 +90,9 @@ export function createAccountRoutes(deps: ApiDeps, accounts: AccountStore): Rout
       recoveryCode: created.recoveryCode,
     };
     res.status(201).json(response);
-  }));
+  });
 
-  router.post(API_PATHS.accountLogin, loginLimiter, safe(async (req, res) => {
+  router.post(API_PATHS.accountLogin, loginLimiter, async (req, res) => {
     const { username, password } = (req.body ?? {}) as Partial<AccountCredentials>;
     if (typeof username !== 'string' || typeof password !== 'string') {
       fail(res, 400, 'Username and password are required');
@@ -115,9 +105,9 @@ export function createAccountRoutes(deps: ApiDeps, accounts: AccountStore): Rout
       return;
     }
     res.json(session(account.id, account.username));
-  }));
+  });
 
-  router.post(API_PATHS.recoverAccount, loginLimiter, safe(async (req, res) => {
+  router.post(API_PATHS.recoverAccount, loginLimiter, async (req, res) => {
     const { username, recoveryCode, newPassword } = (req.body ?? {}) as Partial<RecoverAccountRequest>;
     const problem = passwordProblem(newPassword);
     if (problem) {
@@ -142,7 +132,7 @@ export function createAccountRoutes(deps: ApiDeps, accounts: AccountStore): Rout
       recoveryCode: recovered.recoveryCode,
     };
     res.json(response);
-  }));
+  });
 
   router.post(API_PATHS.accountLogout, hostOnly, (req, res) => {
     auth.sessions.revoke(accountOf(req).sessionId);

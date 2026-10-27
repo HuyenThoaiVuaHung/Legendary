@@ -76,7 +76,8 @@ export function mountFrontend(
   app.use('/assets', express.static(resolve(assetsOverrideDir)));
   app.use('/assets', express.static(resolve(assetsDir)));
   app.use(express.static(root));
-  app.get('*', (_req, res) => {
+  // Express 5 path syntax: a named wildcard replaces the bare '*'.
+  app.get('/{*splat}', (_req, res) => {
     res.sendFile(join(root, 'index.html'));
   });
 }

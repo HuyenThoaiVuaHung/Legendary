@@ -134,3 +134,13 @@ export function denyDefaultRoom(multiRoom: boolean): RequestHandler {
     next();
   };
 }
+
+/**
+ * A named route parameter as a string. Express 5 types params as
+ * `string | string[]` because wildcards capture several segments; none of
+ * our parameters are wildcards, so an array here would be a routing bug.
+ */
+export function param(req: Request, name: string): string {
+  const value = req.params[name];
+  return Array.isArray(value) ? value.join('/') : (value ?? '');
+}

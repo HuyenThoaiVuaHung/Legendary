@@ -23,7 +23,7 @@ import { VCNV_OBSTACLE_INDEX, VCNV_PIECE_COUNT } from '../game.rules';
 import { Room } from '../rooms/room';
 import { DEFAULT_ROOM_ID } from '../rooms/room.registry';
 import { MediaStore } from '../services/media.store';
-import { bearerToken, identityOf, requireAuth, roomOf } from './middleware';
+import { bearerToken, identityOf, param, requireAuth, roomOf } from './middleware';
 import type { ApiDeps } from './index';
 
 /** Round kinds plus the catch-all bucket for unclassified assets. */
@@ -131,7 +131,7 @@ export function createMediaRoutes(deps: ApiDeps): Router {
 
   router.post('/api/media/:kind', adminOnly, (req, res) => {
     const room = roomOf(req);
-    const kind = req.params.kind;
+    const kind = param(req, 'kind');
     if (!MEDIA_KINDS.includes(kind)) {
       badRequest(res, `Unknown media kind: ${kind}`);
       return;
@@ -158,7 +158,7 @@ export function createMediaRoutes(deps: ApiDeps): Router {
       res.status(403).json(error);
       return;
     }
-    const key = req.params.key as BrandAssetKey;
+    const key = param(req, 'key') as BrandAssetKey;
     if (!(BRAND_ASSET_KEYS as readonly string[]).includes(key)) {
       badRequest(res, `Unknown brand asset: ${req.params.key}`);
       return;
@@ -223,12 +223,12 @@ export function createMediaRoutes(deps: ApiDeps): Router {
   const serveMedia = (req: Request, res: Response, media: MediaStore): void => {
     // Only the public kinds may be served here; the protected obstacle store
     // is reachable exclusively through the reveal-gated route above.
-    if (!MEDIA_KINDS.includes(req.params.kind)) {
+    if (!MEDIA_KINDS.includes(param(req, 'kind'))) {
       const error: ApiError = { error: 'Media not found' };
       res.status(404).json(error);
       return;
     }
-    const path = media.resolve(req.params.kind, req.params.name);
+    const path = media.resolve(param(req, 'kind'), param(req, 'name'));
     if (path === undefined) {
       const error: ApiError = { error: 'Media not found' };
       res.status(404).json(error);
@@ -245,7 +245,7 @@ export function createMediaRoutes(deps: ApiDeps): Router {
   });
 
   router.get('/rooms/:roomId/media/:kind/:name', (req, res) => {
-    const room = deps.rooms.get(req.params.roomId);
+    const room = deps.rooms.get(param(req, 'roomId'));
     if (!room || room.id === DEFAULT_ROOM_ID) {
       const error: ApiError = { error: 'Media not found' };
       res.status(404).json(error);

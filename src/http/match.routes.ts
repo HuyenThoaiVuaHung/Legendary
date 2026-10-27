@@ -31,7 +31,7 @@ import {
 import { GameRules, PLAYER_COUNT, VCNV_OBSTACLE_INDEX, VCNV_ROW_COUNT } from '../game.rules';
 import { LogLevel } from '../logger';
 import { ExcelImportService } from '../services/excel-import.service';
-import { identityOf, requireAuth, roomOf } from './middleware';
+import { identityOf, param, requireAuth, roomOf } from './middleware';
 import type { ApiDeps } from './index';
 
 /** Socket push event per round kind (wire names kept from the old server). */
@@ -146,7 +146,7 @@ export function createMatchRoutes(deps: ApiDeps): Router {
 
   router.get('/api/rounds/:kind', anyAuthed, (req, res) => {
     const room = roomOf(req);
-    const kind = req.params.kind;
+    const kind = param(req, 'kind');
     if (!isRoundKind(kind)) {
       badRequest(res, `Unknown round kind: ${kind}`);
       return;
@@ -161,7 +161,7 @@ export function createMatchRoutes(deps: ApiDeps): Router {
 
   router.put('/api/rounds/:kind', adminOnly, (req, res) => {
     const room = roomOf(req);
-    const kind = req.params.kind;
+    const kind = param(req, 'kind');
     if (!isRoundKind(kind)) {
       badRequest(res, `Unknown round kind: ${kind}`);
       return;
