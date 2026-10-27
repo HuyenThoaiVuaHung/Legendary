@@ -126,7 +126,10 @@ export function loadConfig(): ServerConfig {
     saveLog: Boolean(fileConfig['saveLog'] ?? DEFAULTS.saveLog),
     uploadLimitBytes: num('uploadLimitMb', DEFAULTS.uploadLimitMb) * BYTES_PER_MB,
     multiRoom: bool('multiRoom', DEFAULTS.multiRoom),
-    serverAdmins: (fileConfig['serverAdmins'] as string[] | undefined) ?? [],
+    serverAdmins:
+      process.env['LEGENDARY_SERVERADMINS']?.split(',').map((name) => name.trim()).filter(Boolean) ??
+      (fileConfig['serverAdmins'] as string[] | undefined) ??
+      [],
     sessionsPath: str('sessionsPath', DEFAULTS.sessionsPath),
     sessionIdleTtlSeconds: num('sessionIdleTtlSeconds', DEFAULTS.sessionIdleTtlSeconds),
     sessionMaxTtlSeconds: num('sessionMaxTtlSeconds', DEFAULTS.sessionMaxTtlSeconds),
