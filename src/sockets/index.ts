@@ -1,11 +1,11 @@
 import { Server } from 'socket.io';
+import { IncomingMessage } from 'http';
 import { Role } from '../contracts/api';
-import { GameRules } from '../game.rules';
+import { ipBucket } from '../http/client-ip';
 import { LogFn, LogLevel } from '../logger';
+import { DEFAULT_ROOM_ID, RoomRegistry } from '../rooms/room.registry';
 import { AuthService } from '../services/auth.service';
-import { TimerService } from '../services/timer.service';
-import { GameSessionState, NO_PLAYER } from '../state/game.state';
-import { MatchStore } from '../state/match.store';
+import { NO_PLAYER } from '../state/game.state';
 import { registerChpHandlers } from './chp.handlers';
 import { registerCommonHandlers } from './common.handlers';
 import { HandlerContext, HandlerRegistrar, SocketIdentity } from './context';
@@ -36,30 +36,86 @@ const ROLE_NAMES: Record<Role, string> = {
 
 export interface SocketDeps {
   io: Server;
-  store: MatchStore;
-  session: GameSessionState;
+  rooms: RoomRegistry;
   auth: AuthService;
-  timer: TimerService;
-  rules: GameRules;
   log: LogFn;
+  /** Hosted mode: every socket must belong to a created room. */
+  multiRoom: boolean;
+  clientIp: (req: IncomingMessage) => string;
+  maxSocketsPerIp: number;
+  maxSpectatorsPerRoom: number;
 }
 
 export function registerSockets(deps: SocketDeps): void {
-  const { io, store, session, auth, timer, rules, log } = deps;
+  const { io, rooms, auth, log, multiRoom, clientIp, maxSocketsPerIp, maxSpectatorsPerRoom } = deps;
+  const socketCounts = new Map<string, number>();
+  const viewerCounts = new Map<string, number>();
 
-  // Handshake: resolve the token to an identity. Never reject — an absent
-  // or invalid token simply yields a viewer, matching the old
-  // verify-identity semantics where login could not fail.
+  // Handshake: resolve the token to an identity. An absent or invalid token
+  // simply yields a viewer of the default room, matching the old
+  // verify-identity semantics where login could not fail. Only a token for a
+  // room that no longer exists is rejected.
   io.use((socket, next) => {
+    const bucket = ipBucket(clientIp(socket.request));
+    if ((socketCounts.get(bucket) ?? 0) >= maxSocketsPerIp) {
+      next(new Error('Too many connections'));
+      return;
+    }
+    socket.data.ipBucket = bucket;
     const identity: SocketIdentity =
       auth.verifyToken(socket.handshake.auth?.token) ?? { roleId: Role.Viewer };
+    const roomId = identity.roomId ?? DEFAULT_ROOM_ID;
+    if (multiRoom && roomId === DEFAULT_ROOM_ID) {
+      next(new Error('Join a room first'));
+      return;
+    }
+    if (!rooms.get(roomId)) {
+      next(new Error('Unknown room'));
+      return;
+    }
+    if (roomId !== DEFAULT_ROOM_ID && identity.roleId === Role.Viewer &&
+      (viewerCounts.get(roomId) ?? 0) >= maxSpectatorsPerRoom) {
+      next(new Error('Room is full'));
+      return;
+    }
+    if (roomId !== DEFAULT_ROOM_ID && identity.roleId === Role.Viewer) {
+      viewerCounts.set(roomId, (viewerCounts.get(roomId) ?? 0) + 1);
+      socket.once('disconnect', () => {
+        const count = (viewerCounts.get(roomId) ?? 1) - 1;
+        if (count === 0) viewerCounts.delete(roomId);
+        else viewerCounts.set(roomId, count);
+      });
+    }
     socket.data.identity = identity;
     next();
   });
 
   io.on('connection', (socket) => {
     const identity = socket.data.identity as SocketIdentity;
-    const ctx: HandlerContext = { io, socket, identity, store, session, timer, rules, log };
+    const room = rooms.get(identity.roomId ?? DEFAULT_ROOM_ID);
+    if (!room) {
+      // The room closed between handshake and connection.
+      socket.disconnect(true);
+      return;
+    }
+    const bucket = socket.data.ipBucket as string;
+    if ((socketCounts.get(bucket) ?? 0) >= maxSocketsPerIp) {
+      socket.disconnect(true);
+      return;
+    }
+    socketCounts.set(bucket, (socketCounts.get(bucket) ?? 0) + 1);
+    void socket.join(room.id);
+    room.touch();
+    const ctx: HandlerContext = {
+      io: room.channel,
+      socket,
+      identity,
+      store: room.store,
+      session: room.session,
+      timer: room.timer,
+      rules: room.rules,
+      log,
+    };
 
     if (identity.roleId === Role.Player && identity.index !== undefined) {
       markPlayerConnected(ctx, identity.index);
@@ -67,7 +123,15 @@ export function registerSockets(deps: SocketDeps): void {
       log(`${ROLE_NAMES[identity.roleId]} connected at ${socket.id}`);
     }
 
-    socket.on('disconnect', () => markPlayerDisconnected(ctx));
+    socket.on('disconnect', () => {
+      const count = (socketCounts.get(bucket) ?? 1) - 1;
+      if (count === 0) {
+        socketCounts.delete(bucket);
+      } else {
+        socketCounts.set(bucket, count);
+      }
+      markPlayerDisconnected(ctx);
+    });
 
     for (const register of REGISTRARS) register(ctx);
   });

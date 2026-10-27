@@ -1,6 +1,6 @@
 import AdmZip from 'adm-zip';
 import { randomUUID } from 'crypto';
-import { LegionImportResponse } from '../contracts/api';
+import { BRAND_SLOTS, LegionImportResponse, UiConfig } from '../contracts/api';
 import {
   ChpRound,
   KdQuestion,
@@ -24,6 +24,7 @@ import {
   VCNV_ROW_COUNT,
 } from '../game.rules';
 import { MatchStore } from '../state/match.store';
+import { UiConfigStore } from './ui-config.store';
 import { MediaStore, sanitizeFileName } from './media.store';
 
 // ---------------------------------------------------------------------------
@@ -116,8 +117,6 @@ const EDITOR_MATCH_POS_IDLE = 0;
 const NO_ACTIVE_QUESTION = -1;
 /** Editor requires a point value on every question; TT scores by placement. */
 const NO_STATIC_VALUE = 0;
-/** Minimal valid IInterfaceConfig for exported archives (Pallette.RED). */
-const DEFAULT_UI_CONFIG = { darkMode: false, pallette: 0, miscImageSrcNames: {} };
 const EXPORT_FALLBACK_NAME = 'match';
 
 const KD_TYPE_BY_EDITOR: Record<EditorQuestionType, KdQuestionType> = {
@@ -152,10 +151,18 @@ const EDITOR_TYPE_BY_KD: Record<KdQuestionType, EditorQuestionType> = {
  * editorData.json plus per-kind media folders), converting between the
  * editor's question bank and the canonical round contracts.
  */
+export class QuotaError extends Error {
+  constructor() {
+    super('Room storage is full');
+    this.name = 'QuotaError';
+  }
+}
+
 export class LegionFileService {
   constructor(
     private readonly store: MatchStore,
     private readonly media: MediaStore,
+    private readonly ui: UiConfigStore,
   ) {}
 
   /**
@@ -163,10 +170,29 @@ export class LegionFileService {
    * question bank into fresh round files, and reset the match state.
    * The caller (HTTP route) is responsible for emitting the update-* pushes.
    */
-  importArchive(buffer: Buffer): LegionImportResponse {
-    const zip = new AdmZip(buffer);
-    const editorData = readEditorData(zip);
-    const mediaCounts = this.extractMedia(zip);
+  importArchive(buffer: Buffer, options: { maxMediaBytes?: number } = {}): LegionImportResponse {
+    const { editorData, files, totalMediaBytes } = parseArchive(buffer);
+    if (options.maxMediaBytes !== undefined && totalMediaBytes > options.maxMediaBytes) {
+      throw new QuotaError();
+    }
+    const mediaCounts: Partial<Record<MediaFolder, number>> = {};
+    const miscNames = new Map<string, string>();
+    for (const file of files) {
+      const stored = this.media.saveWithName(file.folder, file.name, file.data);
+      if (file.folder === 'misc') miscNames.set(file.name, stored);
+      mediaCounts[file.folder] = (mediaCounts[file.folder] ?? 0) + 1;
+    }
+    const raw = editorData.uiConfig as Partial<UiConfig> | null;
+    const names: UiConfig['miscImageSrcNames'] = {};
+    for (const slot of BRAND_SLOTS) {
+      const name = raw?.miscImageSrcNames?.[slot];
+      if (typeof name === 'string' && miscNames.has(name)) names[slot] = miscNames.get(name)!;
+    }
+    this.ui.set({
+      darkMode: raw?.darkMode === true,
+      pallette: typeof raw?.pallette === 'number' && Number.isFinite(raw.pallette) ? raw.pallette : 0,
+      miscImageSrcNames: names,
+    });
 
     const matchName = editorData.matchData.matchName ?? '';
     const importedPlayers = editorData.matchData.players ?? [];
@@ -196,6 +222,11 @@ export class LegionFileService {
     return { matchName, mediaCounts };
   }
 
+  /** Validate an archive without changing room state. */
+  async inspect(buffer: Buffer): Promise<{ matchName: string }> {
+    return inspectLegionArchive(buffer);
+  }
+
   /**
    * Best-effort inverse of importArchive: rebuild editorData.json from the
    * current canonical data and bundle every referenced media file that still
@@ -215,7 +246,7 @@ export class LegionFileService {
     const editorData: EditorData = {
       uid: randomUUID(),
       dateModified: Date.now(),
-      uiConfig: DEFAULT_UI_CONFIG,
+      uiConfig: this.ui.get(),
       matchData: {
         matchName: match.matchName,
         matchVersion: EXPORT_MATCH_VERSION,
@@ -252,6 +283,20 @@ export class LegionFileService {
     };
 
     const zip = new AdmZip();
+    const ui = editorData.uiConfig as UiConfig;
+    const addedMisc = new Set<string>();
+    for (const slot of BRAND_SLOTS) {
+      const name = ui.miscImageSrcNames[slot];
+      const path = name ? this.media.resolve('misc', name) : undefined;
+      if (path && name) {
+        if (!addedMisc.has(name)) {
+          zip.addLocalFile(path, 'misc', name);
+          addedMisc.add(name);
+        }
+      } else {
+        delete ui.miscImageSrcNames[slot];
+      }
+    }
     zip.addFile(EDITOR_DATA_ENTRY, Buffer.from(JSON.stringify(editorData)));
     this.addMediaFiles(zip, collectReferencedMedia({ kd, vcnv, tt, vd }));
 
@@ -261,33 +306,6 @@ export class LegionFileService {
   }
 
   // ------------------------------------------------------------------ media
-
-  private extractMedia(zip: AdmZip): Partial<Record<MediaFolder, number>> {
-    const counts: Partial<Record<MediaFolder, number>> = {};
-    let extractedEntries = 0;
-    let extractedBytes = 0;
-    for (const entry of zip.getEntries()) {
-      if (entry.isDirectory || entry.entryName === EDITOR_DATA_ENTRY) continue;
-      const segments = entry.entryName.replace(/\\/g, '/').split('/').filter(Boolean);
-      if (segments.length < 2) continue;
-      const folder = segments[0] as MediaFolder;
-      if (!MEDIA_FOLDERS.includes(folder)) continue;
-      // Zip-bomb guard: bound decompressed output, not just the upload size.
-      if (extractedEntries + 1 > MAX_ARCHIVE_ENTRIES) {
-        throw new Error(`Archive has more than ${MAX_ARCHIVE_ENTRIES} media entries`);
-      }
-      const data = entry.getData();
-      if (extractedBytes + data.length > MAX_ARCHIVE_TOTAL_BYTES) {
-        throw new Error('Archive decompresses past the allowed total media size');
-      }
-      extractedEntries += 1;
-      extractedBytes += data.length;
-      const name = segments[segments.length - 1];
-      this.media.saveWithName(folder, name, data);
-      counts[folder] = (counts[folder] ?? 0) + 1;
-    }
-    return counts;
-  }
 
   private addMediaFiles(zip: AdmZip, referenced: Map<RoundKind, Set<string>>): void {
     for (const [kind, names] of referenced) {
@@ -302,6 +320,42 @@ export class LegionFileService {
 // ---------------------------------------------------------------------------
 // editorData parsing
 // ---------------------------------------------------------------------------
+
+/** Validate an archive and return its match name without writing any files. */
+export async function inspectLegionArchive(buffer: Buffer): Promise<{ matchName: string }> {
+  const { editorData } = parseArchive(buffer);
+  return { matchName: editorData.matchData.matchName ?? '' };
+}
+
+function parseArchive(buffer: Buffer): { editorData: EditorData; files: { folder: MediaFolder; name: string; data: Buffer }[]; totalMediaBytes: number } {
+  const zip = new AdmZip(buffer);
+  const editorData = readEditorData(zip);
+  const files: { folder: MediaFolder; name: string; data: Buffer }[] = [];
+  let total = 0;
+  for (const entry of zip.getEntries()) {
+    if (entry.isDirectory || entry.entryName === EDITOR_DATA_ENTRY) continue;
+    const segments = entry.entryName.replace(/\\/g, '/').split('/').filter(Boolean);
+    if (segments.length < 2) continue;
+    const folder = segments[0] as MediaFolder;
+    if (!MEDIA_FOLDERS.includes(folder)) continue;
+    if (files.length + 1 > MAX_ARCHIVE_ENTRIES) throw new Error('Archive has too many media entries');
+    const data = entry.getData();
+    total += data.length;
+    if (total > MAX_ARCHIVE_TOTAL_BYTES) throw new Error('Archive decompresses past the allowed total media size');
+    files.push({ folder, name: segments[segments.length - 1], data });
+  }
+  // Exercise the same conversion during inspection, before any import writes.
+  const bank = editorData.questionBank;
+  mapKdRound(bank.kd);
+  mapVcnvRound(bank.vcnv);
+  mapTtRound(bank.tt?.questions ?? []);
+  mapVdRound(bank.vd?.questions ?? []);
+  mapChpRound(bank.chp?.questions ?? []);
+  if (typeof editorData.matchData.matchName !== 'string' || !Array.isArray(editorData.matchData.players)) {
+    throw new Error('Invalid .legion file: invalid match data');
+  }
+  return { editorData, files, totalMediaBytes: total };
+}
 
 function readEditorData(zip: AdmZip): EditorData {
   const entry = zip.getEntry(EDITOR_DATA_ENTRY);

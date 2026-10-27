@@ -9,13 +9,6 @@ import { HandlerContext, isAdmin } from './context';
 const SFX_GET_TURN = 'KD_GET_TURN';
 const SFX_WRONG = 'KD_WRONG';
 
-/**
- * Handle of the running post-buzz decision countdown, if any. Shared module
- * state, like the VD steal countdown: one match per server process, and only
- * one decision window can be live at a time.
- */
-let decisionCountdown: NodeJS.Timeout | undefined;
-
 /** Player index of the acting socket, or NO_PLAYER when it isn't a player. */
 function resolvePlayerIndex(ctx: HandlerContext): number {
   if (ctx.identity.roleId === Role.Player && ctx.identity.index !== undefined) {
@@ -159,7 +152,7 @@ export function registerKdHandlers(ctx: HandlerContext): void {
   // player variant times out into a wrong answer for the turn holder; the
   // admin variant is a neutral countdown that simply advances the question.
   socket.on('start-3s-timer-kd', (isPlayerTimer: boolean) => {
-    if (decisionCountdown !== undefined) clearInterval(decisionCountdown);
+    if (session.kdDecisionCountdown !== undefined) clearInterval(session.kdDecisionCountdown);
     let counter = rules.kdDecisionTicks;
     session.kdDecisionTimerOwner = isPlayerTimer
       ? DecisionTimerOwner.Player
@@ -221,7 +214,7 @@ export function registerKdHandlers(ctx: HandlerContext): void {
         }
       }
     }, rules.decisionTickMs);
-    decisionCountdown = handle;
+    session.kdDecisionCountdown = handle;
   });
 
   socket.on('stop-3s-timer-kd', () => {
