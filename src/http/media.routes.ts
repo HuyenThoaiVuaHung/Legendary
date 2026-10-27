@@ -6,10 +6,11 @@
  * config.uploadLimitBytes, and restricted to image/audio/video mimetypes.
  * Storage and legacy-asset fallback resolution live in MediaStore.
  */
-import { Response, Router } from 'express';
+import { Request, Response, Router } from 'express';
 import multer from 'multer';
 import { resolve } from 'path';
 import {
+  API_PATHS,
   ApiError,
   BRAND_ASSET_KEYS,
   BrandAssetKey,
@@ -17,9 +18,12 @@ import {
   Role,
   UPLOAD_FIELD,
 } from '../contracts/api';
-import { ROUND_KINDS } from '../contracts/game';
+import { RoundKind, ROUND_KINDS } from '../contracts/game';
 import { VCNV_OBSTACLE_INDEX, VCNV_PIECE_COUNT } from '../game.rules';
-import { identityOf, requireAuth } from './middleware';
+import { Room } from '../rooms/room';
+import { DEFAULT_ROOM_ID } from '../rooms/room.registry';
+import { MediaStore } from '../services/media.store';
+import { identityOf, requireAuth, roomOf } from './middleware';
 import type { ApiDeps } from './index';
 
 /** Round kinds plus the catch-all bucket for unclassified assets. */
@@ -47,7 +51,7 @@ function badRequest(res: Response, message: string): void {
 }
 
 export function createMediaRoutes(deps: ApiDeps): Router {
-  const { auth, media, store, config } = deps;
+  const { auth, config } = deps;
   const router = Router();
   const adminOnly = requireAuth(auth, Role.Admin);
   const anyRole = requireAuth(auth);
@@ -100,7 +104,13 @@ export function createMediaRoutes(deps: ApiDeps): Router {
     return true;
   };
 
+  const mediaUrl = (room: Room, kind: RoundKind | 'misc', fileName: string): string =>
+    room.id === DEFAULT_ROOM_ID
+      ? API_PATHS.mediaFile(kind, fileName)
+      : API_PATHS.roomMediaFile(room.id, kind, fileName);
+
   router.post('/api/media/:kind', adminOnly, (req, res) => {
+    const room = roomOf(req);
     const kind = req.params.kind;
     if (!MEDIA_KINDS.includes(kind)) {
       badRequest(res, `Unknown media kind: ${kind}`);
@@ -110,14 +120,24 @@ export function createMediaRoutes(deps: ApiDeps): Router {
       if (handleMulterError(err, res)) return;
       const file = validateUpload(req, res);
       if (!file) return;
-      const saved: MediaUploadResponse = media.save(kind, file.originalname, file.buffer);
-      res.json(saved);
+      const saved = room.media.save(kind, file.originalname, file.buffer);
+      const response: MediaUploadResponse = {
+        fileName: saved.fileName,
+        url: mediaUrl(room, kind as RoundKind | 'misc', saved.fileName),
+      };
+      res.json(response);
     });
   });
 
   // Brand assets have server-owned destinations and override the bundled
   // defaults at /assets. PNG-only keeps URLs and declared content types stable.
   router.post('/api/assets/:key', adminOnly, (req, res) => {
+    const room = roomOf(req);
+    if (room.id !== DEFAULT_ROOM_ID) {
+      const error: ApiError = { error: 'Brand assets can only be changed by the server admin' };
+      res.status(403).json(error);
+      return;
+    }
     const key = req.params.key as BrandAssetKey;
     if (!(BRAND_ASSET_KEYS as readonly string[]).includes(key)) {
       badRequest(res, `Unknown brand asset: ${req.params.key}`);
@@ -127,7 +147,7 @@ export function createMediaRoutes(deps: ApiDeps): Router {
       if (handleMulterError(err, res)) return;
       const file = validateBrandAssetUpload(req, res);
       if (!file) return;
-      const fileName = media.saveBrandAsset(BRAND_ASSET_PATHS[key], file.buffer);
+      const fileName = room.media.saveBrandAsset(BRAND_ASSET_PATHS[key], file.buffer);
       const response: MediaUploadResponse = { fileName, url: `/assets/${fileName}` };
       res.json(response);
     });
@@ -136,11 +156,12 @@ export function createMediaRoutes(deps: ApiDeps): Router {
   // Obstacle pieces are uploaded to the protected store and never exposed by
   // the public /media route below.
   router.post('/api/media/obstacle-piece', adminOnly, (req, res) => {
+    const room = roomOf(req);
     upload.single(UPLOAD_FIELD)(req, res, (err: unknown) => {
       if (handleMulterError(err, res)) return;
       const file = validateUpload(req, res);
       if (!file) return;
-      const fileName = media.saveObstaclePiece(file.originalname, file.buffer);
+      const fileName = room.media.saveObstaclePiece(file.originalname, file.buffer);
       const response: MediaUploadResponse = {
         fileName,
         url: `/api/media/obstacle/${fileName}`,
@@ -153,6 +174,7 @@ export function createMediaRoutes(deps: ApiDeps): Router {
   // open, so players cannot reassemble the hidden obstacle early. Admin and MC
   // (the control/broadcast screens) may always fetch every piece.
   router.get('/api/media/obstacle/:index', anyRole, (req, res) => {
+    const room = roomOf(req);
     const index = Number(req.params.index);
     if (!Number.isInteger(index) || index < 0 || index >= VCNV_PIECE_COUNT) {
       badRequest(res, `Obstacle piece index out of range: ${req.params.index}`);
@@ -160,14 +182,14 @@ export function createMediaRoutes(deps: ApiDeps): Router {
     }
     const role = identityOf(req).roleId;
     const privileged = role === Role.Admin || role === Role.Mc;
-    const round = store.round('vcnv').get();
+    const round = room.store.round('vcnv').get();
     if (!privileged && round.questions[index]?.isOpen !== true) {
       const error: ApiError = { error: 'Obstacle piece not yet revealed' };
       res.status(403).json(error);
       return;
     }
     const fileName = round.questions[VCNV_OBSTACLE_INDEX]?.imagePieceFiles?.[index];
-    const path = fileName ? media.resolveObstaclePiece(fileName) : undefined;
+    const path = fileName ? room.media.resolveObstaclePiece(fileName) : undefined;
     if (path === undefined) {
       const error: ApiError = { error: 'Obstacle piece not found' };
       res.status(404).json(error);
@@ -178,7 +200,7 @@ export function createMediaRoutes(deps: ApiDeps): Router {
     res.sendFile(path);
   });
 
-  router.get('/media/:kind/:name', (req, res) => {
+  const serveMedia = (req: Request, res: Response, media: MediaStore): void => {
     // Only the public kinds may be served here; the protected obstacle store
     // is reachable exclusively through the reveal-gated route above.
     if (!MEDIA_KINDS.includes(req.params.kind)) {
@@ -196,6 +218,20 @@ export function createMediaRoutes(deps: ApiDeps): Router {
     // executable same-origin document.
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.sendFile(resolve(path));
+  };
+
+  router.get('/media/:kind/:name', (req, res) => {
+    serveMedia(req, res, deps.rooms.defaultRoom().media);
+  });
+
+  router.get('/rooms/:roomId/media/:kind/:name', (req, res) => {
+    const room = deps.rooms.get(req.params.roomId);
+    if (!room || room.id === DEFAULT_ROOM_ID) {
+      const error: ApiError = { error: 'Media not found' };
+      res.status(404).json(error);
+      return;
+    }
+    serveMedia(req, res, room.media);
   });
 
   return router;

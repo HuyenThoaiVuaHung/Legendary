@@ -3,6 +3,8 @@
  */
 import { NextFunction, Request, RequestHandler, Response } from 'express';
 import { ApiError, Role, TokenPayload } from '../contracts/api';
+import { Room } from '../rooms/room';
+import { DEFAULT_ROOM_ID, RoomRegistry } from '../rooms/room.registry';
 import { AuthService } from '../services/auth.service';
 
 const BEARER_PREFIX = 'Bearer ';
@@ -20,9 +22,10 @@ const ROLE_RANK: Readonly<Record<Role, number>> = {
 
 const VIEWER_IDENTITY: TokenPayload = { roleId: Role.Viewer };
 
-/** Express request carrying the verified token identity. */
+/** Express request carrying the verified token identity and its room. */
 export interface AuthedRequest extends Request {
   identity?: TokenPayload;
+  room?: Room;
 }
 
 /** The identity requireAuth stored on the request; Viewer when absent. */
@@ -63,4 +66,31 @@ export function requireAuth(auth: AuthService, minRole?: Role): RequestHandler {
     (req as AuthedRequest).identity = payload ?? VIEWER_IDENTITY;
     next();
   };
+}
+
+/**
+ * Resolve the caller's room from its token (no token, or a room-less token,
+ * means the default room) and store it as `req.room`. A token for a room
+ * that no longer exists is a 404 — never silently the default room.
+ * Mounted once in front of every /api and /media route.
+ */
+export function attachRoom(auth: AuthService, rooms: RoomRegistry): RequestHandler {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const payload = auth.verifyToken(bearerToken(req));
+    const room = rooms.get(payload?.roomId ?? DEFAULT_ROOM_ID);
+    if (!room) {
+      const error: ApiError = { error: 'Unknown room' };
+      res.status(404).json(error);
+      return;
+    }
+    (req as AuthedRequest).room = room;
+    next();
+  };
+}
+
+/** The room attachRoom resolved for this request. */
+export function roomOf(req: Request): Room {
+  const room = (req as AuthedRequest).room;
+  if (!room) throw new Error('roomOf() called on a route not behind attachRoom');
+  return room;
 }

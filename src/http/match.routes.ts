@@ -31,7 +31,7 @@ import {
 import { GameRules, PLAYER_COUNT, VCNV_OBSTACLE_INDEX, VCNV_ROW_COUNT } from '../game.rules';
 import { LogLevel } from '../logger';
 import { ExcelImportService } from '../services/excel-import.service';
-import { identityOf, requireAuth } from './middleware';
+import { identityOf, requireAuth, roomOf } from './middleware';
 import type { ApiDeps } from './index';
 
 /** Socket push event per round kind (wire names kept from the old server). */
@@ -93,11 +93,10 @@ function serverError(res: Response, err: unknown): void {
 }
 
 export function createMatchRoutes(deps: ApiDeps): Router {
-  const { io, store, auth, legionFiles, log, config } = deps;
+  const { auth, log, config } = deps;
   const router = Router();
   const adminOnly = requireAuth(auth, Role.Admin);
   const anyAuthed = requireAuth(auth);
-  const excelImport = new ExcelImportService(store);
   const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: config.uploadLimitBytes },
@@ -105,24 +104,27 @@ export function createMatchRoutes(deps: ApiDeps): Router {
 
   // -------------------------------------------------------------- match state
 
-  router.get(API_PATHS.match, anyAuthed, (_req, res) => {
-    res.json(store.getMatch());
+  router.get(API_PATHS.match, anyAuthed, (req, res) => {
+    const room = roomOf(req);
+    res.json(room.store.getMatch());
   });
 
   router.patch(API_PATHS.matchPosition, adminOnly, (req, res) => {
+    const room = roomOf(req);
     const { position } = (req.body ?? {}) as UpdateMatchPositionRequest;
     if (!(MATCH_POSITIONS as readonly string[]).includes(position)) {
       badRequest(res, `Invalid match position: ${String(position)}`);
       return;
     }
-    const match = store.updateMatch((m) => {
+    const match = room.store.updateMatch((m) => {
       m.position = position as MatchPosition;
     });
-    io.emit(MATCH_UPDATE_EVENT, match);
+    room.channel.emit(MATCH_UPDATE_EVENT, match);
     res.json(match);
   });
 
   router.patch('/api/match/players/:index', adminOnly, (req, res) => {
+    const room = roomOf(req);
     const index = Number(req.params.index);
     if (!Number.isInteger(index) || index < 0 || index >= PLAYER_COUNT) {
       badRequest(res, `Invalid player index: ${req.params.index}`);
@@ -133,22 +135,23 @@ export function createMatchRoutes(deps: ApiDeps): Router {
       badRequest(res, 'Missing player payload');
       return;
     }
-    const match = store.updateMatch((m) => {
+    const match = room.store.updateMatch((m) => {
       m.players[index] = player as Player;
     });
-    io.emit(MATCH_UPDATE_EVENT, match);
+    room.channel.emit(MATCH_UPDATE_EVENT, match);
     res.json(match);
   });
 
   // --------------------------------------------------------------- round data
 
   router.get('/api/rounds/:kind', anyAuthed, (req, res) => {
+    const room = roomOf(req);
     const kind = req.params.kind;
     if (!isRoundKind(kind)) {
       badRequest(res, `Unknown round kind: ${kind}`);
       return;
     }
-    const data = store.round(kind).get();
+    const data = room.store.round(kind).get();
     if (kind === 'kd' && identityOf(req).roleId !== Role.Admin) {
       res.json(stripKdQuestions(data as KdRound));
       return;
@@ -157,6 +160,7 @@ export function createMatchRoutes(deps: ApiDeps): Router {
   });
 
   router.put('/api/rounds/:kind', adminOnly, (req, res) => {
+    const room = roomOf(req);
     const kind = req.params.kind;
     if (!isRoundKind(kind)) {
       badRequest(res, `Unknown round kind: ${kind}`);
@@ -168,14 +172,15 @@ export function createMatchRoutes(deps: ApiDeps): Router {
       return;
     }
     if (kind === 'vcnv') {
-      recomputeObstacleValue(payload as VcnvRound, config.rules);
+      recomputeObstacleValue(payload as VcnvRound, room.rules);
     }
-    const data = store.round(kind).set(payload);
-    emitRoundUpdate(io, kind, data);
+    const data = room.store.round(kind).set(payload);
+    emitRoundUpdate(room.channel, kind, data);
     res.json(data);
   });
 
   router.patch('/api/rounds/kd', adminOnly, (req, res) => {
+    const room = roomOf(req);
     const { gamemode, activePlayerIndex } = (req.body ?? {}) as UpdateKdControlRequest;
     if (gamemode === undefined && activePlayerIndex === undefined) {
       badRequest(res, 'Provide gamemode and/or activePlayerIndex');
@@ -194,27 +199,28 @@ export function createMatchRoutes(deps: ApiDeps): Router {
       badRequest(res, `Invalid activePlayerIndex: ${String(activePlayerIndex)}`);
       return;
     }
-    const data = store.round('kd').update((kd) => {
+    const data = room.store.round('kd').update((kd) => {
       if (gamemode !== undefined) kd.gamemode = gamemode;
       if (activePlayerIndex !== undefined) kd.activePlayerIndex = activePlayerIndex;
     });
-    emitRoundUpdate(io, 'kd', data);
-    if (gamemode !== undefined) io.emit(KD_GAMEMODE_EVENT, gamemode);
+    emitRoundUpdate(room.channel, 'kd', data);
+    if (gamemode !== undefined) room.channel.emit(KD_GAMEMODE_EVENT, gamemode);
     res.json(data);
   });
 
   // ------------------------------------------------------------------ imports
 
   router.post('/api/match/import-excel', adminOnly, (req, res) => {
+    const room = roomOf(req);
     if (typeof req.body !== 'object' || req.body === null) {
       badRequest(res, 'Missing workbook payload');
       return;
     }
     try {
-      const rounds = excelImport.import(req.body);
+      const rounds = new ExcelImportService(room.store).import(req.body);
       for (const kind of ROUND_KINDS) {
-        const data = store.round(kind).set(rounds[kind]);
-        emitRoundUpdate(io, kind, data);
+        const data = room.store.round(kind).set(rounds[kind]);
+        emitRoundUpdate(room.channel, kind, data);
       }
       res.json(rounds);
     } catch (err) {
@@ -227,6 +233,7 @@ export function createMatchRoutes(deps: ApiDeps): Router {
     API_PATHS.importLegion,
     adminOnly,
     (req: Request, res: Response) => {
+      const room = roomOf(req);
       upload.single(UPLOAD_FIELD)(req, res, async (err: unknown) => {
         if (err) {
           handleUploadError(res, err);
@@ -238,10 +245,10 @@ export function createMatchRoutes(deps: ApiDeps): Router {
           return;
         }
         try {
-          const result = await legionFiles.importArchive(file.buffer);
-          io.emit(MATCH_UPDATE_EVENT, store.getMatch());
+          const result = await room.legionFiles.importArchive(file.buffer);
+          room.channel.emit(MATCH_UPDATE_EVENT, room.store.getMatch());
           for (const kind of ROUND_KINDS) {
-            emitRoundUpdate(io, kind, store.round(kind).get());
+            emitRoundUpdate(room.channel, kind, room.store.round(kind).get());
           }
           res.json(result);
         } catch (importErr) {
@@ -252,9 +259,10 @@ export function createMatchRoutes(deps: ApiDeps): Router {
     },
   );
 
-  router.get(API_PATHS.exportLegion, adminOnly, async (_req, res) => {
+  router.get(API_PATHS.exportLegion, adminOnly, async (req, res) => {
+    const room = roomOf(req);
     try {
-      const archive = await legionFiles.exportArchive();
+      const archive = await room.legionFiles.exportArchive();
       const safeName = archive.fileName.replace(/[^a-zA-Z0-9._-]+/g, '_') || 'match.legion';
       res.setHeader('Content-Type', 'application/zip');
       res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);

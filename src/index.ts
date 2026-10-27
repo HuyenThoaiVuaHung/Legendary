@@ -26,9 +26,7 @@ const io = new Server(httpServer, { cors: { origin: '*' } });
 
 const rooms = new RoomRegistry(io, config, log);
 
-// REST still serves the default room only; room-scoped routes come next.
-const { channel, store, session, media, legionFiles } = rooms.defaultRoom();
-app.use(createApiRouter({ io: channel, store, session, auth, media, legionFiles, log, config }));
+app.use(createApiRouter({ rooms, auth, log, config }));
 mountFrontend(app, config.frontendDir, config.assetsDir, config.assetsOverrideDir);
 
 registerSockets({ io, rooms, auth, log });

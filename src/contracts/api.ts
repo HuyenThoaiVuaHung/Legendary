@@ -60,6 +60,35 @@ export interface ApiError {
   error: string;
 }
 
+/** Per-room shared secrets; players additionally identify by username. */
+export interface RoomSecrets {
+  admin: string;
+  mc: string;
+  player: string;
+}
+
+/** POST /api/rooms — the creator receives the secrets and an admin token. */
+export interface CreateRoomResponse {
+  roomId: string;
+  /** Short code people type or share to join. */
+  code: string;
+  secrets: RoomSecrets;
+  token: string;
+  roleId: Role;
+}
+
+export interface JoinRoomRequest {
+  code: string;
+  /** Omitted: join as a spectator. Otherwise one of the room's secrets. */
+  secret?: string;
+  /** Required with the player secret; claims (or reclaims) a seat. */
+  username?: string;
+}
+
+export interface JoinRoomResponse extends LoginResponse {
+  roomId: string;
+}
+
 /** Mutable brand assets that safely override the bundled Legion defaults. */
 export const BRAND_ASSET_KEYS = ['logo', 'wordmark', 'placeholder', 'icon'] as const;
 export type BrandAssetKey = (typeof BRAND_ASSET_KEYS)[number];
@@ -84,4 +113,11 @@ export const API_PATHS = {
   obstaclePiece: (index: number) => `/api/media/obstacle/${index}`,
   importLegion: '/api/match/import-legion',
   exportLegion: '/api/match/export-legion',
+  rooms: '/api/rooms',
+  joinRoom: '/api/rooms/join',
+  /** The caller's own room (from the token): DELETE closes it. */
+  currentRoom: '/api/rooms/current',
+  /** Public media of a created room; the default room uses `mediaFile`. */
+  roomMediaFile: (roomId: string, kind: RoundKind | 'misc', name: string) =>
+    `/rooms/${roomId}/media/${kind}/${encodeURIComponent(name)}`,
 } as const;

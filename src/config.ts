@@ -16,6 +16,14 @@ export interface ServerConfig {
   /** Login attempts allowed per IP per `loginRateWindowSeconds`. */
   loginRateLimit: number;
   loginRateWindowSeconds: number;
+  /** Most created rooms the server keeps at once. */
+  maxRooms: number;
+  /** Rooms one IP may create per `roomCreateRateWindowSeconds`. */
+  roomCreateRateLimit: number;
+  roomCreateRateWindowSeconds: number;
+  /** Join attempts per IP per `roomJoinRateWindowSeconds` (secret guessing). */
+  roomJoinRateLimit: number;
+  roomJoinRateWindowSeconds: number;
   /** Directory uploaded media is stored in, relative to the server root. */
   mediaDir: string;
   /** Directory the built Legion frontend is served from. */
@@ -45,6 +53,11 @@ const DEFAULTS = {
   roomsDir: 'match_data/rooms',
   loginRateLimit: 30,
   loginRateWindowSeconds: 60,
+  maxRooms: 100,
+  roomCreateRateLimit: 5,
+  roomCreateRateWindowSeconds: 60 * 60,
+  roomJoinRateLimit: 30,
+  roomJoinRateWindowSeconds: 60,
   frontendDir: 'Legion',
   assetsDir: 'assets',
   assetsOverrideDir: 'match_data/assets',
@@ -76,6 +89,14 @@ export function loadConfig(): ServerConfig {
     roomsDir: str('roomsDir', DEFAULTS.roomsDir),
     loginRateLimit: num('loginRateLimit', DEFAULTS.loginRateLimit),
     loginRateWindowSeconds: num('loginRateWindowSeconds', DEFAULTS.loginRateWindowSeconds),
+    maxRooms: num('maxRooms', DEFAULTS.maxRooms),
+    roomCreateRateLimit: num('roomCreateRateLimit', DEFAULTS.roomCreateRateLimit),
+    roomCreateRateWindowSeconds: num(
+      'roomCreateRateWindowSeconds',
+      DEFAULTS.roomCreateRateWindowSeconds,
+    ),
+    roomJoinRateLimit: num('roomJoinRateLimit', DEFAULTS.roomJoinRateLimit),
+    roomJoinRateWindowSeconds: num('roomJoinRateWindowSeconds', DEFAULTS.roomJoinRateWindowSeconds),
     frontendDir: str('frontendDir', DEFAULTS.frontendDir),
     assetsDir: str('assetsDir', DEFAULTS.assetsDir),
     assetsOverrideDir: str('assetsOverrideDir', DEFAULTS.assetsOverrideDir),
