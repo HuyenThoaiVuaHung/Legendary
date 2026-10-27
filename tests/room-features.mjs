@@ -85,4 +85,17 @@ check('match locks free seats', locked.status === 423 && locked.body.error === '
 check('player link respects lock', (await post('/api/rooms/join-link', { token: playerLink.token, username: 'Bob' })).status === 423);
 check('player can reclaim while locked', (await post('/api/rooms/join-link', { token: playerLink.token, username: 'Alice' }, player.body.token)).status === 200);
 check('admin can release while locked', (await call('/api/rooms/current/seats/0', { method: 'DELETE', token: admin })).status === 204);
+// Hosted-mode SPA deep links (share links and the host area) must load the
+// client, never a JSON 404 — skipped when the Legion build is absent.
+const legionIndex = join(process.cwd(), 'Legion', 'index.html');
+let hasLegion = true;
+try { readFileSync(legionIndex); } catch { hasLegion = false; }
+if (hasLegion) {
+  for (const path of [`/r/${room.code}`, `/r/${room.code}/stream`, '/host', '/host/auth']) {
+    const html = await fetch(`${base}${path}`).then((r) => r.text());
+    check(`SPA serves ${path}`, html.includes('<app-root'));
+  }
+} else {
+  console.log('SKIP  SPA deep links (Legion build missing)');
+}
 process.exitCode = failures ? 1 : 0;
