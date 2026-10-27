@@ -1,17 +1,24 @@
 /**
- * Room lifecycle: create, join by code, close.
+ * Room lifecycle and room administration (hosted mode only).
  *
- * POST   /api/rooms         — anyone (rate-limited) creates a room and gets
- *                             its secrets plus an admin token.
- * POST   /api/rooms/join    — code [+ secret [+ username]] → a room token.
- *                             No secret: spectator. Player secret: needs a
- *                             username, which claims or reclaims a seat.
- *                             A wrong secret is a 401 (and counts against
- *                             the join rate limit), never a silent viewer.
- * DELETE /api/rooms/current — an admin closes their own (created) room.
+ * POST   /api/rooms                  — a logged-in host creates a room
+ *                                      (rate-limited per IP, capped per
+ *                                      account and per server).
+ * POST   /api/rooms/:id/enter        — the owning host gets an admin session.
+ * POST   /api/rooms/join             — code [+ secret [+ username]] → session.
+ *                                      No secret: spectator. Player secret
+ *                                      + username: claims a free seat; a held
+ *                                      seat is reclaimable only by the session
+ *                                      that holds it. A wrong secret is a 401
+ *                                      (counted by the join limiter).
+ * DELETE /api/rooms/current          — an admin closes the room.
+ * POST   /api/rooms/current/secrets  — rotate one role's secret; that role's
+ *                                      sessions are revoked (except the caller).
+ * DELETE /api/rooms/current/seats/:i — free a seat; its player is logged out.
+ * POST   /api/rooms/current/transfer — the owner hands the room to another host.
  */
-import { createHash, timingSafeEqual } from 'crypto';
-import { Router } from 'express';
+import { createHash, randomBytes, randomInt, timingSafeEqual } from 'crypto';
+import { Request, Response, Router } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import {
   API_PATHS,
@@ -20,14 +27,29 @@ import {
   JoinRoomRequest,
   JoinRoomResponse,
   Role,
+  RoomSecrets,
+  RotateSecretRequest,
   TokenPayload,
+  TransferRoomRequest,
 } from '../contracts/api';
+import { Room } from '../rooms/room';
 import { DEFAULT_ROOM_ID } from '../rooms/room.registry';
-import { requireAuth, roomOf } from './middleware';
+import { AccountStore } from '../services/account.store';
+import { AuthedRequest, accountOf, bearerToken, requireAccount, requireAuth, roomOf } from './middleware';
 import type { ApiDeps } from './index';
 
 const MS_PER_SECOND = 1000;
 const USERNAME_MAX_LENGTH = 32;
+const ROTATABLE_ROLES: readonly (keyof RoomSecrets)[] = ['admin', 'mc', 'player'];
+const ROLE_OF_SECRET: Readonly<Record<keyof RoomSecrets, Role>> = {
+  admin: Role.Admin,
+  mc: Role.Mc,
+  player: Role.Player,
+};
+/** Same shapes the registry generates (see room.registry.ts). */
+const TYPEABLE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const SECRET_LENGTH: Readonly<Record<'mc' | 'player', number>> = { mc: 8, player: 6 };
+const ADMIN_SECRET_BYTES = 12;
 
 /** Constant-time string equality (hashing first equalizes the lengths). */
 function secretMatches(given: string, expected: string): boolean {
@@ -35,9 +57,35 @@ function secretMatches(given: string, expected: string): boolean {
   return timingSafeEqual(digest(given), digest(expected));
 }
 
-export function createRoomRoutes(deps: ApiDeps): Router {
+function newSecret(role: keyof RoomSecrets): string {
+  if (role === 'admin') return randomBytes(ADMIN_SECRET_BYTES).toString('base64url');
+  let out = '';
+  for (let i = 0; i < SECRET_LENGTH[role]; i++) {
+    out += TYPEABLE_ALPHABET[randomInt(TYPEABLE_ALPHABET.length)];
+  }
+  return out;
+}
+
+function fail(res: Response, status: number, message: string): void {
+  const error: ApiError = { error: message };
+  res.status(status).json(error);
+}
+
+/** Created rooms only: the default room has no meta, secrets, or seats. */
+function createdRoomOf(req: Request, res: Response): (Room & { meta: NonNullable<Room['meta']> }) | null {
+  const room = roomOf(req);
+  if (room.id === DEFAULT_ROOM_ID || !room.meta) {
+    fail(res, 400, 'Not available for the default room');
+    return null;
+  }
+  return room as Room & { meta: NonNullable<Room['meta']> };
+}
+
+export function createRoomRoutes(deps: ApiDeps, accounts: AccountStore): Router {
   const { rooms, auth, config, log } = deps;
   const router = Router();
+  const adminOnly = requireAuth(auth, Role.Admin);
+  const hostOnly = requireAccount(auth);
 
   const limiter = (limit: number, windowSeconds: number, message: string) =>
     rateLimit({
@@ -58,30 +106,49 @@ export function createRoomRoutes(deps: ApiDeps): Router {
     'Too many join attempts, try again later',
   );
 
-  router.post(API_PATHS.rooms, createLimiter, (_req, res) => {
-    const room = rooms.create();
-    if (!room?.meta) {
-      const error: ApiError = { error: 'Server is at its room limit' };
-      res.status(503).json(error);
+  router.post(API_PATHS.rooms, hostOnly, createLimiter, (req, res) => {
+    const { accountId } = accountOf(req);
+    if (rooms.ownedBy(accountId).length >= config.maxRoomsPerAccount) {
+      fail(res, 409, `A host may own at most ${config.maxRoomsPerAccount} rooms`);
       return;
     }
-    const payload: TokenPayload = { roleId: Role.Admin, roomId: room.id };
+    const room = rooms.create(accountId);
+    if (!room?.meta) {
+      fail(res, 503, 'Server is at its room limit');
+      return;
+    }
     const response: CreateRoomResponse = {
       roomId: room.id,
       code: room.meta.code,
+      ownerAccountId: accountId,
       secrets: room.meta.secrets,
-      token: auth.issueToken(payload),
+      token: auth.issueToken({ roleId: Role.Admin, roomId: room.id, accountId }),
       roleId: Role.Admin,
     };
     res.status(201).json(response);
+  });
+
+  router.post('/api/rooms/:roomId/enter', hostOnly, (req, res) => {
+    const { accountId } = accountOf(req);
+    const room = rooms.get(req.params.roomId);
+    if (!room?.meta || room.meta.ownerAccountId !== accountId) {
+      // Same answer for "missing" and "not yours": don't confirm room ids.
+      fail(res, 404, 'No such room');
+      return;
+    }
+    const response: JoinRoomResponse = {
+      token: auth.issueToken({ roleId: Role.Admin, roomId: room.id, accountId }),
+      roleId: Role.Admin,
+      roomId: room.id,
+    };
+    res.json(response);
   });
 
   router.post(API_PATHS.joinRoom, joinLimiter, (req, res) => {
     const body = (req.body ?? {}) as JoinRoomRequest;
     const room = typeof body.code === 'string' ? rooms.byCode(body.code) : undefined;
     if (!room?.meta) {
-      const error: ApiError = { error: 'No room with that code' };
-      res.status(404).json(error);
+      fail(res, 404, 'No room with that code');
       return;
     }
     const { secrets } = room.meta;
@@ -97,24 +164,34 @@ export function createRoomRoutes(deps: ApiDeps): Router {
     } else if (secretMatches(secret, secrets.player)) {
       const username = typeof body.username === 'string' ? body.username.trim() : '';
       if (username === '' || username.length > USERNAME_MAX_LENGTH) {
-        const error: ApiError = {
-          error: `A username of 1–${USERNAME_MAX_LENGTH} characters is required`,
-        };
-        res.status(400).json(error);
+        fail(res, 400, `A username of 1–${USERNAME_MAX_LENGTH} characters is required`);
         return;
       }
-      const seat = room.claimSeat(username);
-      if (seat === null) {
-        const error: ApiError = { error: 'All player seats are taken' };
-        res.status(409).json(error);
-        return;
+      const held = room.seatOf(username);
+      let seat: number | null;
+      if (held !== -1) {
+        // Only the session already holding this seat may reclaim it.
+        const current = auth.verifyToken(bearerToken(req));
+        const ownsSeat =
+          current?.roomId === room.id && current.roleId === Role.Player && current.index === held;
+        if (!ownsSeat) {
+          fail(res, 409, 'That username already holds a seat; ask the room admin to release it');
+          return;
+        }
+        auth.sessions.revoke(current.sessionId);
+        seat = held;
+      } else {
+        seat = room.claimFreeSeat(username);
+        if (seat === null) {
+          fail(res, 409, 'All player seats are taken');
+          return;
+        }
+        rooms.saveMeta(room);
+        log(`Room ${room.id}: ${username} holds seat ${seat}`);
       }
-      rooms.saveMeta(room);
-      log(`Room ${room.id}: ${username} holds seat ${seat}`);
       payload = { roleId: Role.Player, index: seat, roomId: room.id };
     } else {
-      const error: ApiError = { error: 'Wrong secret' };
-      res.status(401).json(error);
+      fail(res, 401, 'Wrong secret');
       return;
     }
 
@@ -127,14 +204,74 @@ export function createRoomRoutes(deps: ApiDeps): Router {
     res.json(response);
   });
 
-  router.delete(API_PATHS.currentRoom, requireAuth(auth, Role.Admin), (req, res) => {
-    const room = roomOf(req);
-    if (room.id === DEFAULT_ROOM_ID) {
-      const error: ApiError = { error: 'The default room cannot be closed' };
-      res.status(400).json(error);
+  router.delete(API_PATHS.currentRoom, adminOnly, (req, res) => {
+    const room = createdRoomOf(req, res);
+    if (!room) return;
+    rooms.remove(room.id);
+    res.status(204).end();
+  });
+
+  router.post(API_PATHS.rotateSecret, adminOnly, (req, res) => {
+    const room = createdRoomOf(req, res);
+    if (!room) return;
+    const { role } = (req.body ?? {}) as RotateSecretRequest;
+    if (!ROTATABLE_ROLES.includes(role)) {
+      fail(res, 400, `role must be one of: ${ROTATABLE_ROLES.join(', ')}`);
       return;
     }
-    rooms.remove(room.id);
+    room.meta.secrets[role] = newSecret(role);
+    rooms.saveMeta(room);
+    const callerSession = (req as AuthedRequest).identity?.sessionId;
+    const roleId = ROLE_OF_SECRET[role];
+    const revoked = rooms.revokeSessions(
+      room.id,
+      // Host-entered admin sessions come from the account, not the secret.
+      (record) => record.roleId === roleId && !(role === 'admin' && record.accountId !== undefined),
+      callerSession,
+    );
+    log(`Room ${room.id}: rotated ${role} secret, revoked ${revoked} session(s)`);
+    res.json(room.meta.secrets);
+  });
+
+  router.delete('/api/rooms/current/seats/:index', adminOnly, (req, res) => {
+    const room = createdRoomOf(req, res);
+    if (!room) return;
+    const index = Number(req.params.index);
+    if (!Number.isInteger(index) || index < 0 || index >= room.meta.seats.length) {
+      fail(res, 400, `Seat index out of range: ${req.params.index}`);
+      return;
+    }
+    const holder = room.releaseSeat(index);
+    rooms.saveMeta(room);
+    rooms.revokeSessions(room.id, (record) => record.roleId === Role.Player && record.index === index);
+    log(`Room ${room.id}: released seat ${index}${holder ? ` (${holder})` : ''}`);
+    res.status(204).end();
+  });
+
+  router.post(API_PATHS.transferRoom, adminOnly, (req, res) => {
+    const room = createdRoomOf(req, res);
+    if (!room) return;
+    const callerAccount = (req as AuthedRequest).identity?.accountId;
+    if (callerAccount !== room.meta.ownerAccountId) {
+      fail(res, 403, 'Only the room owner can transfer it');
+      return;
+    }
+    const { username } = (req.body ?? {}) as TransferRoomRequest;
+    const target = typeof username === 'string' ? accounts.byUsername(username) : undefined;
+    if (!target) {
+      fail(res, 404, 'No host with that username');
+      return;
+    }
+    if (rooms.ownedBy(target.id).length >= config.maxRoomsPerAccount) {
+      fail(res, 409, 'That host already owns the maximum number of rooms');
+      return;
+    }
+    const previousOwner = room.meta.ownerAccountId;
+    room.meta.ownerAccountId = target.id;
+    rooms.saveMeta(room);
+    // The previous owner's account-entered admin sessions end with ownership.
+    rooms.revokeSessions(room.id, (record) => record.accountId === previousOwner);
+    log(`Room ${room.id}: ownership transferred to ${target.username}`);
     res.status(204).end();
   });
 

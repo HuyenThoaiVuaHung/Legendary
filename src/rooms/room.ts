@@ -18,6 +18,8 @@ export interface RoomChannel {
 /** Persisted identity of a created room (`<roomsDir>/<id>/room.json`). */
 export interface RoomMeta {
   code: string;
+  /** Host account that owns the room (created it, or received it). */
+  ownerAccountId: string;
   secrets: RoomSecrets;
   /** Username holding each player seat, in seat order; null when free. */
   seats: (string | null)[];
@@ -48,20 +50,31 @@ export class Room {
   }
 
   /**
-   * Seat for `username`: the seat it already holds (usernames compare
-   * case-insensitively), else the first free one, else null when full.
+   * Seat held by `username` (case-insensitive), or -1. Holding a seat is not
+   * proof of identity: only the session that holds it may reclaim it.
    * Only created rooms have seats; the default room uses per-seat secrets.
    */
-  claimSeat(username: string): number | null {
-    if (!this.meta) return null;
+  seatOf(username: string): number {
+    if (!this.meta) return -1;
     const key = username.toLocaleLowerCase();
-    const seats = this.meta.seats;
-    const held = seats.findIndex((seat) => seat?.toLocaleLowerCase() === key);
-    if (held !== -1) return held;
-    const free = seats.indexOf(null);
+    return this.meta.seats.findIndex((seat) => seat?.toLocaleLowerCase() === key);
+  }
+
+  /** Give `username` the first free seat; null when every seat is taken. */
+  claimFreeSeat(username: string): number | null {
+    if (!this.meta) return null;
+    const free = this.meta.seats.indexOf(null);
     if (free === -1) return null;
-    seats[free] = username;
+    this.meta.seats[free] = username;
     return free;
+  }
+
+  /** Free a seat; returns the username that held it, if any. */
+  releaseSeat(index: number): string | null {
+    if (!this.meta || index < 0 || index >= this.meta.seats.length) return null;
+    const holder = this.meta.seats[index] ?? null;
+    this.meta.seats[index] = null;
+    return holder;
   }
 
   /** Stop every timer the room owns, silently; used when closing it. */

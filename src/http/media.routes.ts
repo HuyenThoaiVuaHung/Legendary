@@ -6,7 +6,7 @@
  * config.uploadLimitBytes, and restricted to image/audio/video mimetypes.
  * Storage and legacy-asset fallback resolution live in MediaStore.
  */
-import { Request, Response, Router } from 'express';
+import { Request, RequestHandler, Response, Router } from 'express';
 import multer from 'multer';
 import { resolve } from 'path';
 import {
@@ -23,7 +23,7 @@ import { VCNV_OBSTACLE_INDEX, VCNV_PIECE_COUNT } from '../game.rules';
 import { Room } from '../rooms/room';
 import { DEFAULT_ROOM_ID } from '../rooms/room.registry';
 import { MediaStore } from '../services/media.store';
-import { identityOf, requireAuth, roomOf } from './middleware';
+import { bearerToken, identityOf, requireAuth, roomOf } from './middleware';
 import type { ApiDeps } from './index';
 
 /** Round kinds plus the catch-all bucket for unclassified assets. */
@@ -51,10 +51,30 @@ function badRequest(res: Response, message: string): void {
 }
 
 export function createMediaRoutes(deps: ApiDeps): Router {
-  const { auth, config } = deps;
+  const { auth, accounts, config } = deps;
   const router = Router();
   const adminOnly = requireAuth(auth, Role.Admin);
   const anyRole = requireAuth(auth);
+  const serverAdmins = new Set(config.serverAdmins.map((name) => name.toLocaleLowerCase()));
+  // Hosted mode: server-wide branding belongs to the operators listed in
+  // config.serverAdmins, never to a room admin. Single venue: room admin.
+  const brandGuard: RequestHandler = config.multiRoom
+    ? (req, res, next) => {
+        const identity = auth.verifyAccount(bearerToken(req));
+        const account = identity ? accounts.get(identity.accountId) : undefined;
+        if (!account) {
+          const error: ApiError = { error: 'Host login required' };
+          res.status(401).json(error);
+          return;
+        }
+        if (!serverAdmins.has(account.username.toLocaleLowerCase())) {
+          const error: ApiError = { error: 'Only server admins can change server-wide branding' };
+          res.status(403).json(error);
+          return;
+        }
+        next();
+      }
+    : adminOnly;
   const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: config.uploadLimitBytes },
@@ -131,7 +151,7 @@ export function createMediaRoutes(deps: ApiDeps): Router {
 
   // Brand assets have server-owned destinations and override the bundled
   // defaults at /assets. PNG-only keeps URLs and declared content types stable.
-  router.post('/api/assets/:key', adminOnly, (req, res) => {
+  router.post('/api/assets/:key', brandGuard, (req, res) => {
     const room = roomOf(req);
     if (room.id !== DEFAULT_ROOM_ID) {
       const error: ApiError = { error: 'Brand assets can only be changed by the server admin' };

@@ -8,6 +8,7 @@ import { RoundKind } from '../contracts/game';
 import { GameRules, loadGameRules, PLAYER_COUNT } from '../game.rules';
 import { LogFn, LogLevel } from '../logger';
 import { MediaStore } from '../services/media.store';
+import { SessionRecord, SessionStore } from '../services/session.store';
 import { MatchStore } from '../state/match.store';
 import { Room, RoomMeta } from './room';
 
@@ -55,6 +56,7 @@ export class RoomRegistry {
   constructor(
     private readonly io: Server,
     private readonly config: ServerConfig,
+    private readonly sessions: SessionStore,
     private readonly log: LogFn,
   ) {
     const store = new MatchStore(config.matchDataPath, log);
@@ -87,8 +89,13 @@ export class RoomRegistry {
     return this.rooms.size - 1;
   }
 
-  /** A new room, or null when the server is at `maxRooms`. */
-  create(): Room | null {
+  /** Rooms owned by a host account. */
+  ownedBy(accountId: string): Room[] {
+    return this.list().filter((room) => room.meta?.ownerAccountId === accountId);
+  }
+
+  /** A new room owned by `ownerAccountId`, or null at `maxRooms`. */
+  create(ownerAccountId: string): Room | null {
     if (this.createdCount() >= this.config.maxRooms) return null;
 
     let id: string;
@@ -107,6 +114,7 @@ export class RoomRegistry {
     };
     const meta: RoomMeta = {
       code,
+      ownerAccountId,
       secrets,
       seats: Array(PLAYER_COUNT).fill(null),
       // A snapshot of the server rules: per-room edits never leak elsewhere.
@@ -136,6 +144,7 @@ export class RoomRegistry {
     const room = this.rooms.get(id);
     if (!room) return false;
     room.dispose();
+    this.sessions.revokeWhere((record) => record.roomId === id);
     this.io.in(id).disconnectSockets(true);
     this.rooms.delete(id);
     if (room.meta) this.idByCode.delete(room.meta.code);
@@ -144,6 +153,28 @@ export class RoomRegistry {
     }
     this.log(`Room ${id} closed`);
     return true;
+  }
+
+  /** Revoke sessions in a room and drop their live sockets. */
+  revokeSessions(
+    roomId: string,
+    predicate: (record: SessionRecord, id: string) => boolean,
+    keepSessionId?: string,
+  ): number {
+    const revoked = this.sessions.revokeWhere(
+      (record, id) => record.roomId === roomId && id !== keepSessionId && predicate(record, id),
+    );
+    if (revoked.size > 0) {
+      void this.io
+        .in(roomId)
+        .fetchSockets()
+        .then((sockets) => {
+          for (const socket of sockets) {
+            if (revoked.has(socket.data.identity?.sessionId)) socket.disconnect(true);
+          }
+        });
+    }
+    return revoked.size;
   }
 
   private open(id: string, meta: RoomMeta): Room {

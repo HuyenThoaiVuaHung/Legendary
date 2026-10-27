@@ -4,17 +4,40 @@ import express from 'express';
 import { createServer } from 'http';
 import { networkInterfaces } from 'os';
 import { Server } from 'socket.io';
-import { loadConfig } from './config';
+import { loadConfig, usesDefaultSecrets } from './config';
 import { createLogger, LogLevel } from './logger';
 import { RoomRegistry } from './rooms/room.registry';
+import { AccountStore } from './services/account.store';
 import { AuthService } from './services/auth.service';
+import { SessionStore } from './services/session.store';
 import { createApiRouter, mountFrontend } from './http';
 import { registerSockets } from './sockets';
 
 const config = loadConfig();
 const log = createLogger(config.saveLog);
 
-const auth = new AuthService(config);
+const MS_PER_SECOND = 1000;
+const sessions = new SessionStore(
+  config.sessionsPath,
+  config.sessionIdleTtlSeconds * MS_PER_SECOND,
+  config.sessionMaxTtlSeconds * MS_PER_SECOND,
+  log,
+);
+const auth = new AuthService(config, sessions);
+const accounts = new AccountStore(config.accountsPath, log);
+
+if (config.multiRoom) {
+  log(`Hosted mode: rooms + host accounts on, default room off.`);
+  if (config.serverAdmins.length === 0) {
+    log('No serverAdmins configured: server-wide branding cannot be changed.', LogLevel.Warn);
+  }
+} else if (usesDefaultSecrets(config)) {
+  log(
+    'Default secrets in use (admin "BTC"…). Fine on a private LAN; set adminSecret, ' +
+      'mcSecret and playerSecrets before exposing this server.',
+    LogLevel.Warn,
+  );
+}
 
 const app = express();
 app.use(cors({ origin: '*' }));
@@ -24,12 +47,12 @@ app.use(express.json());
 const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: '*' } });
 
-const rooms = new RoomRegistry(io, config, log);
+const rooms = new RoomRegistry(io, config, sessions, log);
 
-app.use(createApiRouter({ rooms, auth, log, config }));
+app.use(createApiRouter({ rooms, auth, accounts, log, config }));
 mountFrontend(app, config.frontendDir, config.assetsDir, config.assetsOverrideDir);
 
-registerSockets({ io, rooms, auth, log });
+registerSockets({ io, rooms, auth, log, multiRoom: config.multiRoom });
 
 httpServer.listen(config.port, () => {
   log('Server Legendary khởi động thành công, đang chờ kết nối mới…');

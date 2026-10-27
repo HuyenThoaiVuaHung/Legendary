@@ -1,4 +1,3 @@
-import { randomBytes } from 'crypto';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { GameRules, loadGameRules } from './game.rules';
@@ -34,9 +33,22 @@ export interface ServerConfig {
   assetsOverrideDir: string;
   saveLog: boolean;
   uploadLimitBytes: number;
-  tokenTtlSeconds: number;
-  /** HMAC secret for tokens; random per boot unless pinned in config/env. */
-  jwtSecret: string;
+  /**
+   * Hosted mode (VPS): rooms + host accounts on, the legacy secret login and
+   * the default room off. Off (default): one venue, exactly as before.
+   */
+  multiRoom: boolean;
+  /** Host usernames allowed to change server-wide defaults (multiRoom). */
+  serverAdmins: string[];
+  /** Server-side session records (hashed tokens). */
+  sessionsPath: string;
+  sessionIdleTtlSeconds: number;
+  sessionMaxTtlSeconds: number;
+  accountsPath: string;
+  maxRoomsPerAccount: number;
+  /** Signups allowed per IP per `signupRateWindowSeconds`. */
+  signupRateLimit: number;
+  signupRateWindowSeconds: number;
   /** Game scoring/timing rules, defaults overridden by config's `rules`. */
   rules: GameRules;
 }
@@ -63,11 +75,17 @@ const DEFAULTS = {
   assetsOverrideDir: 'match_data/assets',
   saveLog: false,
   uploadLimitMb: 100,
-  tokenTtlSeconds: 24 * 60 * 60,
+  multiRoom: false,
+  sessionsPath: 'match_data/sessions.json',
+  sessionIdleTtlSeconds: 7 * 24 * 60 * 60,
+  sessionMaxTtlSeconds: 30 * 24 * 60 * 60,
+  accountsPath: 'match_data/accounts.json',
+  maxRoomsPerAccount: 5,
+  signupRateLimit: 5,
+  signupRateWindowSeconds: 60 * 60,
 } as const;
 
 const BYTES_PER_MB = 1024 * 1024;
-const JWT_SECRET_RANDOM_BYTES = 32;
 
 export function loadConfig(): ServerConfig {
   const fileConfig: Partial<Record<string, unknown>> = existsSync(CONFIG_FILE)
@@ -76,6 +94,11 @@ export function loadConfig(): ServerConfig {
 
   const str = (key: string, fallback: string): string =>
     process.env[`LEGENDARY_${key.toUpperCase()}`] ?? (fileConfig[key] as string) ?? fallback;
+  const bool = (key: string, fallback: boolean): boolean => {
+    const env = process.env[`LEGENDARY_${key.toUpperCase()}`];
+    if (env !== undefined) return env === 'true' || env === '1';
+    return Boolean(fileConfig[key] ?? fallback);
+  };
   const num = (key: string, fallback: number): number =>
     Number(process.env[`LEGENDARY_${key.toUpperCase()}`] ?? fileConfig[key] ?? fallback);
 
@@ -102,8 +125,24 @@ export function loadConfig(): ServerConfig {
     assetsOverrideDir: str('assetsOverrideDir', DEFAULTS.assetsOverrideDir),
     saveLog: Boolean(fileConfig['saveLog'] ?? DEFAULTS.saveLog),
     uploadLimitBytes: num('uploadLimitMb', DEFAULTS.uploadLimitMb) * BYTES_PER_MB,
-    tokenTtlSeconds: num('tokenTtlSeconds', DEFAULTS.tokenTtlSeconds),
-    jwtSecret: str('jwtSecret', randomBytes(JWT_SECRET_RANDOM_BYTES).toString('hex')),
+    multiRoom: bool('multiRoom', DEFAULTS.multiRoom),
+    serverAdmins: (fileConfig['serverAdmins'] as string[] | undefined) ?? [],
+    sessionsPath: str('sessionsPath', DEFAULTS.sessionsPath),
+    sessionIdleTtlSeconds: num('sessionIdleTtlSeconds', DEFAULTS.sessionIdleTtlSeconds),
+    sessionMaxTtlSeconds: num('sessionMaxTtlSeconds', DEFAULTS.sessionMaxTtlSeconds),
+    accountsPath: str('accountsPath', DEFAULTS.accountsPath),
+    maxRoomsPerAccount: num('maxRoomsPerAccount', DEFAULTS.maxRoomsPerAccount),
+    signupRateLimit: num('signupRateLimit', DEFAULTS.signupRateLimit),
+    signupRateWindowSeconds: num('signupRateWindowSeconds', DEFAULTS.signupRateWindowSeconds),
     rules: loadGameRules(fileConfig['rules'] as Partial<GameRules> | undefined),
   };
+}
+
+/** True while any role still uses its shipped default secret. */
+export function usesDefaultSecrets(config: ServerConfig): boolean {
+  return (
+    config.adminSecret === DEFAULTS.adminSecret ||
+    config.mcSecret === DEFAULTS.mcSecret ||
+    config.playerSecrets.some((secret) => (DEFAULTS.playerSecrets as readonly string[]).includes(secret))
+  );
 }

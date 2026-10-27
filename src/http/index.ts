@@ -10,12 +10,14 @@ import { join, resolve } from 'path';
 import { ServerConfig } from '../config';
 import { LogFn } from '../logger';
 import { RoomRegistry } from '../rooms/room.registry';
+import { AccountStore } from '../services/account.store';
 import { AuthService } from '../services/auth.service';
+import { createAccountRoutes } from './account.routes';
 import { createAuthRoutes } from './auth.routes';
 import { createConfigRoutes } from './config.routes';
 import { createMatchRoutes } from './match.routes';
 import { createMediaRoutes } from './media.routes';
-import { attachRoom } from './middleware';
+import { attachRoom, denyDefaultRoom } from './middleware';
 import { createRoomRoutes } from './room.routes';
 
 /** Everything the REST layer may touch, wired once in the composition root. */
@@ -23,15 +25,28 @@ export interface ApiDeps {
   /** Per-request state (store, media, channel…) comes from `roomOf(req)`. */
   rooms: RoomRegistry;
   auth: AuthService;
+  accounts: AccountStore;
   log: LogFn;
   config: ServerConfig;
 }
 
 export function createApiRouter(deps: ApiDeps): Router {
   const router = Router();
+  const { multiRoom } = deps.config;
   router.use(['/api', '/media', '/rooms'], attachRoom(deps.auth, deps.rooms));
-  router.use(createAuthRoutes(deps));
-  router.use(createRoomRoutes(deps));
+  if (multiRoom) {
+    // Hosted: host accounts + rooms; the legacy secret login does not exist.
+    router.use(createAccountRoutes(deps, deps.accounts));
+    router.use(createRoomRoutes(deps, deps.accounts));
+  } else {
+    // Single venue: the legacy secret login; no room or account endpoints.
+    router.use(createAuthRoutes(deps));
+  }
+  // In hosted mode the default room is unreachable through any game endpoint.
+  router.use(
+    ['/api/match', '/api/rounds', '/api/config', '/api/media', '/media'],
+    denyDefaultRoom(multiRoom),
+  );
   router.use(createConfigRoutes(deps));
   router.use(createMatchRoutes(deps));
   router.use(createMediaRoutes(deps));

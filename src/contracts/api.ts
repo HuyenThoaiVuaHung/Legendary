@@ -69,6 +69,8 @@ export interface RoomSecrets {
 
 /** POST /api/rooms — the creator receives the secrets and an admin token. */
 export interface CreateRoomResponse {
+  /** Created rooms are owned by the host account that created them. */
+  ownerAccountId: string;
   roomId: string;
   /** Short code people type or share to join. */
   code: string;
@@ -87,6 +89,50 @@ export interface JoinRoomRequest {
 
 export interface JoinRoomResponse extends LoginResponse {
   roomId: string;
+}
+
+/** POST /api/rooms/current/secrets — rotate one role's secret. */
+export interface RotateSecretRequest {
+  role: keyof RoomSecrets;
+}
+
+/** POST /api/rooms/current/transfer — owner hands the room to another host. */
+export interface TransferRoomRequest {
+  username: string;
+}
+
+export interface AccountCredentials {
+  username: string;
+  password: string;
+}
+
+export interface AccountSession {
+  token: string;
+  accountId: string;
+  username: string;
+}
+
+/** Signup and recovery return a (new) one-time recovery code: show it once. */
+export interface AccountSessionWithRecovery extends AccountSession {
+  recoveryCode: string;
+}
+
+export interface RecoverAccountRequest {
+  username: string;
+  recoveryCode: string;
+  newPassword: string;
+}
+
+export interface OwnedRoom {
+  roomId: string;
+  code: string;
+  createdAt: number;
+}
+
+export interface AccountProfile {
+  accountId: string;
+  username: string;
+  rooms: OwnedRoom[];
 }
 
 /** Mutable brand assets that safely override the bundled Legion defaults. */
@@ -117,6 +163,16 @@ export const API_PATHS = {
   joinRoom: '/api/rooms/join',
   /** The caller's own room (from the token): DELETE closes it. */
   currentRoom: '/api/rooms/current',
+  rotateSecret: '/api/rooms/current/secrets',
+  releaseSeat: (index: number) => `/api/rooms/current/seats/${index}`,
+  transferRoom: '/api/rooms/current/transfer',
+  /** A host's account token → an admin session in a room they own. */
+  enterRoom: (roomId: string) => `/api/rooms/${roomId}/enter`,
+  signup: '/api/accounts',
+  accountLogin: '/api/accounts/login',
+  accountLogout: '/api/accounts/logout',
+  recoverAccount: '/api/accounts/recover',
+  me: '/api/accounts/me',
   /** Public media of a created room; the default room uses `mediaFile`. */
   roomMediaFile: (roomId: string, kind: RoundKind | 'misc', name: string) =>
     `/rooms/${roomId}/media/${kind}/${encodeURIComponent(name)}`,

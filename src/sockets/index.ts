@@ -37,10 +37,12 @@ export interface SocketDeps {
   rooms: RoomRegistry;
   auth: AuthService;
   log: LogFn;
+  /** Hosted mode: every socket must belong to a created room. */
+  multiRoom: boolean;
 }
 
 export function registerSockets(deps: SocketDeps): void {
-  const { io, rooms, auth, log } = deps;
+  const { io, rooms, auth, log, multiRoom } = deps;
 
   // Handshake: resolve the token to an identity. An absent or invalid token
   // simply yields a viewer of the default room, matching the old
@@ -49,7 +51,12 @@ export function registerSockets(deps: SocketDeps): void {
   io.use((socket, next) => {
     const identity: SocketIdentity =
       auth.verifyToken(socket.handshake.auth?.token) ?? { roleId: Role.Viewer };
-    if (!rooms.get(identity.roomId ?? DEFAULT_ROOM_ID)) {
+    const roomId = identity.roomId ?? DEFAULT_ROOM_ID;
+    if (multiRoom && roomId === DEFAULT_ROOM_ID) {
+      next(new Error('Join a room first'));
+      return;
+    }
+    if (!rooms.get(roomId)) {
       next(new Error('Unknown room'));
       return;
     }

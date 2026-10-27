@@ -14,6 +14,8 @@ export interface SocketIdentity {
   index?: number;
   /** Room this socket joined; absent means the default room. */
   roomId?: string;
+  /** Session behind the token, so revoking it can drop this socket. */
+  sessionId?: string;
 }
 
 /**
