@@ -8,7 +8,7 @@
  */
 import { Request, Response, Router } from 'express';
 import multer from 'multer';
-import { Server } from 'socket.io';
+import type { RoomChannel } from '../rooms/room';
 import {
   API_PATHS,
   ApiError,
@@ -57,7 +57,7 @@ function stripKdQuestions(kd: KdRound): Omit<KdRound, 'questions'> {
 }
 
 /** Emit the push event(s) for one round; KD gets its admin + public pair. */
-function emitRoundUpdate(io: Server, kind: RoundKind, data: RoundData): void {
+function emitRoundUpdate(io: RoomChannel, kind: RoundKind, data: RoundData): void {
   io.emit(ROUND_UPDATE_EVENTS[kind], data);
   if (kind === 'kd') {
     io.emit(KD_PUBLIC_UPDATE_EVENT, stripKdQuestions(data as KdRound));

@@ -1,11 +1,9 @@
 import { Server } from 'socket.io';
 import { Role } from '../contracts/api';
-import { GameRules } from '../game.rules';
 import { LogFn, LogLevel } from '../logger';
+import { DEFAULT_ROOM_ID, RoomRegistry } from '../rooms/room.registry';
 import { AuthService } from '../services/auth.service';
-import { TimerService } from '../services/timer.service';
-import { GameSessionState, NO_PLAYER } from '../state/game.state';
-import { MatchStore } from '../state/match.store';
+import { NO_PLAYER } from '../state/game.state';
 import { registerChpHandlers } from './chp.handlers';
 import { registerCommonHandlers } from './common.handlers';
 import { HandlerContext, HandlerRegistrar, SocketIdentity } from './context';
@@ -36,30 +34,48 @@ const ROLE_NAMES: Record<Role, string> = {
 
 export interface SocketDeps {
   io: Server;
-  store: MatchStore;
-  session: GameSessionState;
+  rooms: RoomRegistry;
   auth: AuthService;
-  timer: TimerService;
-  rules: GameRules;
   log: LogFn;
 }
 
 export function registerSockets(deps: SocketDeps): void {
-  const { io, store, session, auth, timer, rules, log } = deps;
+  const { io, rooms, auth, log } = deps;
 
-  // Handshake: resolve the token to an identity. Never reject — an absent
-  // or invalid token simply yields a viewer, matching the old
-  // verify-identity semantics where login could not fail.
+  // Handshake: resolve the token to an identity. An absent or invalid token
+  // simply yields a viewer of the default room, matching the old
+  // verify-identity semantics where login could not fail. Only a token for a
+  // room that no longer exists is rejected.
   io.use((socket, next) => {
     const identity: SocketIdentity =
       auth.verifyToken(socket.handshake.auth?.token) ?? { roleId: Role.Viewer };
+    if (!rooms.get(identity.roomId ?? DEFAULT_ROOM_ID)) {
+      next(new Error('Unknown room'));
+      return;
+    }
     socket.data.identity = identity;
     next();
   });
 
   io.on('connection', (socket) => {
     const identity = socket.data.identity as SocketIdentity;
-    const ctx: HandlerContext = { io, socket, identity, store, session, timer, rules, log };
+    const room = rooms.get(identity.roomId ?? DEFAULT_ROOM_ID);
+    if (!room) {
+      // The room closed between handshake and connection.
+      socket.disconnect(true);
+      return;
+    }
+    void socket.join(room.id);
+    const ctx: HandlerContext = {
+      io: room.channel,
+      socket,
+      identity,
+      store: room.store,
+      session: room.session,
+      timer: room.timer,
+      rules: room.rules,
+      log,
+    };
 
     if (identity.roleId === Role.Player && identity.index !== undefined) {
       markPlayerConnected(ctx, identity.index);

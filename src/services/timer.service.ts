@@ -1,9 +1,9 @@
-import { Server } from 'socket.io';
 import { GameRules } from '../game.rules';
+import type { RoomChannel } from '../rooms/room';
 import { MatchStore } from '../state/match.store';
 
 /**
- * The single main match clock (port of the old doTimer/playPauseTime pair).
+ * A room's main match clock (port of the old doTimer/playPauseTime pair).
  * Emits 'update-clock' every tick; when the clock reaches zero or is stopped
  * it locks the CHP buzzers and the KD answer buttons, exactly as the old
  * server did from inside its dying interval.
@@ -21,7 +21,7 @@ export class TimerService {
   private delayHandle?: NodeJS.Timeout;
 
   constructor(
-    private readonly io: Server,
+    private readonly io: RoomChannel,
     private readonly store: MatchStore,
     private readonly rules: GameRules,
   ) {}
@@ -71,6 +71,12 @@ export class TimerService {
       });
       this.startMainClock(paused);
     }
+  }
+
+  /** Tear down without emitting: used when a room is closed. */
+  dispose(): void {
+    this.clearHandles();
+    this.running = false;
   }
 
   isRunning(): boolean {

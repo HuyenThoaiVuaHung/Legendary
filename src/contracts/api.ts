@@ -27,6 +27,8 @@ export interface LoginResponse {
 export interface TokenPayload {
   roleId: Role;
   index?: number;
+  /** Room the token is valid in; absent means the default room. */
+  roomId?: string;
 }
 
 export interface UpdateMatchPositionRequest {

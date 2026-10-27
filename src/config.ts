@@ -11,6 +11,11 @@ export interface ServerConfig {
   mcSecret: string;
   /** Path of the match state file, relative to the server root. */
   matchDataPath: string;
+  /** Parent directory of created rooms' data (`<roomsDir>/<roomId>/`). */
+  roomsDir: string;
+  /** Login attempts allowed per IP per `loginRateWindowSeconds`. */
+  loginRateLimit: number;
+  loginRateWindowSeconds: number;
   /** Directory uploaded media is stored in, relative to the server root. */
   mediaDir: string;
   /** Directory the built Legion frontend is served from. */
@@ -37,6 +42,9 @@ const DEFAULTS = {
   mcSecret: 'MC',
   matchDataPath: 'match_data/match.json',
   mediaDir: 'match_data/media',
+  roomsDir: 'match_data/rooms',
+  loginRateLimit: 30,
+  loginRateWindowSeconds: 60,
   frontendDir: 'Legion',
   assetsDir: 'assets',
   assetsOverrideDir: 'match_data/assets',
@@ -65,6 +73,9 @@ export function loadConfig(): ServerConfig {
     mcSecret: str('mcSecret', DEFAULTS.mcSecret),
     matchDataPath: str('matchDataPath', DEFAULTS.matchDataPath),
     mediaDir: str('mediaDir', DEFAULTS.mediaDir),
+    roomsDir: str('roomsDir', DEFAULTS.roomsDir),
+    loginRateLimit: num('loginRateLimit', DEFAULTS.loginRateLimit),
+    loginRateWindowSeconds: num('loginRateWindowSeconds', DEFAULTS.loginRateWindowSeconds),
     frontendDir: str('frontendDir', DEFAULTS.frontendDir),
     assetsDir: str('assetsDir', DEFAULTS.assetsDir),
     assetsOverrideDir: str('assetsOverrideDir', DEFAULTS.assetsOverrideDir),

@@ -1,20 +1,9 @@
 import { Role } from '../contracts/api';
-import { VdQuestion } from '../contracts/game';
 import { NO_PLAYER } from '../state/game.state';
 import { HandlerContext, isAdmin } from './context';
 
 /** Protocol sentinel the admin client sends to clear the current question. */
 const CLEAR_QUESTION_ID = -1;
-
-/**
- * The question currently on screen, set by 'broadcast-vd-question'. Shared
- * module state: there is exactly one match per server process, and only the
- * admin broadcasts questions.
- */
-let currentQuestion: VdQuestion | undefined;
-
-/** Handle of the running steal-window countdown, if any. */
-let stealCountdown: NodeJS.Timeout | undefined;
 
 /** Player index of the acting socket, or NO_PLAYER when it isn't a player. */
 function resolvePlayerIndex(ctx: HandlerContext): number {
@@ -30,7 +19,7 @@ export function registerVdHandlers(ctx: HandlerContext): void {
 
   socket.on('broadcast-vd-question', (id: number) => {
     if (id === CLEAR_QUESTION_ID) {
-      currentQuestion = undefined;
+      session.vdCurrentQuestion = undefined;
       io.emit('update-vedich-question', undefined);
       if (vd.get().hopeStarActive) {
         const data = vd.update((d) => {
@@ -41,8 +30,8 @@ export function registerVdHandlers(ctx: HandlerContext): void {
       return;
     }
     const data = vd.get();
-    currentQuestion = data.questionPools[data.activePlayerIndex]?.[id];
-    io.emit('update-vedich-question', currentQuestion);
+    session.vdCurrentQuestion = data.questionPools[data.activePlayerIndex]?.[id];
+    io.emit('update-vedich-question', session.vdCurrentQuestion);
   });
 
   // Legacy payload note: the `id` argument of the marking events is the
@@ -131,11 +120,11 @@ export function registerVdHandlers(ctx: HandlerContext): void {
     io.emit('unlock-button-vd');
 
     const data = vd.get();
-    if (data.hopeStarActive && currentQuestion !== undefined) {
+    if (data.hopeStarActive && session.vdCurrentQuestion !== undefined) {
       // Hope-star pre-penalty: the owner stakes the question's value the
       // moment the steal window opens (a later correct answer pays back
       // double, netting +value).
-      const staked = currentQuestion.value;
+      const staked = session.vdCurrentQuestion.value;
       const match = store.updateMatch((m) => {
         const owner = m.players[data.activePlayerIndex];
         if (!owner) return;
@@ -147,18 +136,18 @@ export function registerVdHandlers(ctx: HandlerContext): void {
     }
 
     io.emit('update-5s-countdown-vd', counter);
-    if (stealCountdown !== undefined) clearInterval(stealCountdown);
+    if (session.vdStealCountdown !== undefined) clearInterval(session.vdStealCountdown);
     const handle = setInterval(() => {
       counter -= 1;
       io.emit('update-5s-countdown-vd', counter);
       if (counter <= 0 || !session.vdStealWindowOpen) {
         clearInterval(handle);
-        if (stealCountdown === handle) stealCountdown = undefined;
+        if (session.vdStealCountdown === handle) session.vdStealCountdown = undefined;
         session.vdStealWindowOpen = false;
         io.emit('update-5s-countdown-vd', 0);
         io.emit('lock-button-vd');
       }
     }, rules.decisionTickMs);
-    stealCountdown = handle;
+    session.vdStealCountdown = handle;
   });
 }

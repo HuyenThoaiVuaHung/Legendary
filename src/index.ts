@@ -6,23 +6,15 @@ import { networkInterfaces } from 'os';
 import { Server } from 'socket.io';
 import { loadConfig } from './config';
 import { createLogger, LogLevel } from './logger';
+import { RoomRegistry } from './rooms/room.registry';
 import { AuthService } from './services/auth.service';
-import { LegionFileService } from './services/legion-file.service';
-import { MediaStore } from './services/media.store';
-import { TimerService } from './services/timer.service';
-import { GameSessionState } from './state/game.state';
-import { MatchStore } from './state/match.store';
 import { createApiRouter, mountFrontend } from './http';
 import { registerSockets } from './sockets';
 
 const config = loadConfig();
 const log = createLogger(config.saveLog);
 
-const store = new MatchStore(config.matchDataPath, log);
-const session = new GameSessionState();
 const auth = new AuthService(config);
-const media = new MediaStore(config.mediaDir, config.assetsDir, config.assetsOverrideDir);
-const legionFiles = new LegionFileService(store, media);
 
 const app = express();
 app.use(cors({ origin: '*' }));
@@ -32,12 +24,14 @@ app.use(express.json());
 const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: '*' } });
 
-const timer = new TimerService(io, store, config.rules);
+const rooms = new RoomRegistry(io, config, log);
 
-app.use(createApiRouter({ io, store, session, auth, media, legionFiles, log, config }));
+// REST still serves the default room only; room-scoped routes come next.
+const { channel, store, session, media, legionFiles } = rooms.defaultRoom();
+app.use(createApiRouter({ io: channel, store, session, auth, media, legionFiles, log, config }));
 mountFrontend(app, config.frontendDir, config.assetsDir, config.assetsOverrideDir);
 
-registerSockets({ io, store, session, auth, timer, rules: config.rules, log });
+registerSockets({ io, rooms, auth, log });
 
 httpServer.listen(config.port, () => {
   log('Server Legendary khởi động thành công, đang chờ kết nối mới…');

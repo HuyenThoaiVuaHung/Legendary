@@ -1,16 +1,19 @@
-import { Server, Socket } from 'socket.io';
+import { Socket } from 'socket.io';
 import { Role } from '../contracts/api';
 import { GameRules } from '../game.rules';
 import { LogFn } from '../logger';
 import { GameSessionState } from '../state/game.state';
 import { MatchStore } from '../state/match.store';
 import { TimerService } from '../services/timer.service';
+import type { RoomChannel } from '../rooms/room';
 
 /** Set on every socket by the auth handshake middleware in sockets/index.ts. */
 export interface SocketIdentity {
   roleId: Role;
   /** Player index (0-based); only for Role.Player. */
   index?: number;
+  /** Room this socket joined; absent means the default room. */
+  roomId?: string;
 }
 
 /**
@@ -18,7 +21,8 @@ export interface SocketIdentity {
  * never persist except through `store`, and never track their own timers.
  */
 export interface HandlerContext {
-  io: Server;
+  /** The socket's room: `io.emit` here reaches only that room. */
+  io: RoomChannel;
   socket: Socket;
   identity: SocketIdentity;
   store: MatchStore;

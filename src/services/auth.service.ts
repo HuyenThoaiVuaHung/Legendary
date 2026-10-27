@@ -28,10 +28,9 @@ export class AuthService {
   }
 
   issueToken(payload: TokenPayload): string {
-    const claims: TokenPayload =
-      payload.index === undefined
-        ? { roleId: payload.roleId }
-        : { roleId: payload.roleId, index: payload.index };
+    const claims: TokenPayload = { roleId: payload.roleId };
+    if (payload.index !== undefined) claims.index = payload.index;
+    if (payload.roomId !== undefined) claims.roomId = payload.roomId;
     return sign(claims, this.config.jwtSecret, {
       algorithm: JWT_ALGORITHM,
       expiresIn: this.config.tokenTtlSeconds,
@@ -49,10 +48,12 @@ export class AuthService {
       const claims = decoded as Record<string, unknown>;
       const roleId = claims['roleId'];
       if (typeof roleId !== 'number' || !(roleId in Role)) return null;
+      const payload: TokenPayload = { roleId: roleId as Role };
       const index = claims['index'];
-      return typeof index === 'number'
-        ? { roleId: roleId as Role, index }
-        : { roleId: roleId as Role };
+      if (typeof index === 'number') payload.index = index;
+      const roomId = claims['roomId'];
+      if (typeof roomId === 'string') payload.roomId = roomId;
+      return payload;
     } catch {
       return null;
     }
