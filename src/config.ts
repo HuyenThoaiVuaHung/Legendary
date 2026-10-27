@@ -45,6 +45,9 @@ export interface ServerConfig {
   sessionIdleTtlSeconds: number;
   sessionMaxTtlSeconds: number;
   accountsPath: string;
+  bankDir: string;
+  bankMaxItemsPerAccount: number;
+  bankMaxBytesPerAccount: number;
   maxRoomsPerAccount: number;
   /** Signups allowed per IP per `signupRateWindowSeconds`. */
   signupRateLimit: number;
@@ -80,6 +83,9 @@ const DEFAULTS = {
   sessionIdleTtlSeconds: 7 * 24 * 60 * 60,
   sessionMaxTtlSeconds: 30 * 24 * 60 * 60,
   accountsPath: 'match_data/accounts.json',
+  bankDir: 'match_data/bank',
+  bankMaxItemsPerAccount: 50,
+  bankMaxBytesPerAccount: 500 * 1024 * 1024,
   maxRoomsPerAccount: 5,
   signupRateLimit: 5,
   signupRateWindowSeconds: 60 * 60,
@@ -134,6 +140,9 @@ export function loadConfig(): ServerConfig {
     sessionIdleTtlSeconds: num('sessionIdleTtlSeconds', DEFAULTS.sessionIdleTtlSeconds),
     sessionMaxTtlSeconds: num('sessionMaxTtlSeconds', DEFAULTS.sessionMaxTtlSeconds),
     accountsPath: str('accountsPath', DEFAULTS.accountsPath),
+    bankDir: str('bankDir', DEFAULTS.bankDir),
+    bankMaxItemsPerAccount: num('bankMaxItemsPerAccount', DEFAULTS.bankMaxItemsPerAccount),
+    bankMaxBytesPerAccount: num('bankMaxBytesPerAccount', DEFAULTS.bankMaxBytesPerAccount),
     maxRoomsPerAccount: num('maxRoomsPerAccount', DEFAULTS.maxRoomsPerAccount),
     signupRateLimit: num('signupRateLimit', DEFAULTS.signupRateLimit),
     signupRateWindowSeconds: num('signupRateWindowSeconds', DEFAULTS.signupRateWindowSeconds),

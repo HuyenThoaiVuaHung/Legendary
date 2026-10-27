@@ -13,6 +13,8 @@ import { LogFn } from '../logger';
 import { RoomRegistry } from '../rooms/room.registry';
 import { AccountStore } from '../services/account.store';
 import { AuthService } from '../services/auth.service';
+import { BankStore } from '../services/bank.store';
+import { createBankRoutes } from './bank.routes';
 import { createAccountRoutes } from './account.routes';
 import { createAuthRoutes } from './auth.routes';
 import { createConfigRoutes } from './config.routes';
@@ -38,14 +40,16 @@ export function createApiRouter(deps: ApiDeps): Router {
   if (multiRoom) {
     // Hosted: host accounts + rooms; the legacy secret login does not exist.
     router.use(createAccountRoutes(deps, deps.accounts));
-    router.use(createRoomRoutes(deps, deps.accounts));
+    const bank = new BankStore(deps.config.bankDir, deps.config.bankMaxItemsPerAccount, deps.config.bankMaxBytesPerAccount);
+    router.use(createBankRoutes(deps, bank));
+    router.use(createRoomRoutes(deps, deps.accounts, bank));
   } else {
     // Single venue: the legacy secret login; no room or account endpoints.
     router.use(createAuthRoutes(deps));
   }
   // In hosted mode the default room is unreachable through any game endpoint.
   router.use(
-    ['/api/match', '/api/rounds', '/api/config', '/api/media', '/media'],
+    ['/api/match', '/api/rounds', '/api/config', '/api/media', '/api/brand', '/media'],
     denyDefaultRoom(multiRoom),
   );
   router.use(createConfigRoutes(deps));

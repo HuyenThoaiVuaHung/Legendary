@@ -13,6 +13,8 @@ import {
   API_PATHS,
   ApiError,
   BRAND_ASSET_KEYS,
+  BRAND_SLOTS,
+  BrandSlot,
   BrandAssetKey,
   MediaUploadResponse,
   Role,
@@ -23,6 +25,7 @@ import { VCNV_OBSTACLE_INDEX, VCNV_PIECE_COUNT } from '../game.rules';
 import { Room } from '../rooms/room';
 import { DEFAULT_ROOM_ID } from '../rooms/room.registry';
 import { MediaStore } from '../services/media.store';
+import { publicConfig } from './config.routes';
 import { bearerToken, identityOf, param, requireAuth, roomOf } from './middleware';
 import type { ApiDeps } from './index';
 
@@ -147,6 +150,41 @@ export function createMediaRoutes(deps: ApiDeps): Router {
       };
       res.json(response);
     });
+  });
+
+  router.post('/api/brand/:slot', adminOnly, (req, res) => {
+    const slot = param(req, 'slot') as BrandSlot;
+    if (!(BRAND_SLOTS as readonly string[]).includes(slot)) {
+      badRequest(res, `Unknown brand slot: ${slot}`);
+      return;
+    }
+    upload.single(UPLOAD_FIELD)(req, res, (err: unknown) => {
+      if (handleMulterError(err, res)) return;
+      const file = validateBrandAssetUpload(req, res);
+      if (!file) return;
+      const room = roomOf(req);
+      const ui = room.ui.get();
+      ui.miscImageSrcNames[slot] = room.media.save('misc', file.originalname, file.buffer).fileName;
+      room.ui.set(ui);
+      const result = publicConfig(room, config);
+      room.channel.emit('update-config', result);
+      res.json(result);
+    });
+  });
+
+  router.delete('/api/brand/:slot', adminOnly, (req, res) => {
+    const slot = param(req, 'slot') as BrandSlot;
+    if (!(BRAND_SLOTS as readonly string[]).includes(slot)) {
+      badRequest(res, `Unknown brand slot: ${slot}`);
+      return;
+    }
+    const room = roomOf(req);
+    const ui = room.ui.get();
+    delete ui.miscImageSrcNames[slot];
+    room.ui.set(ui);
+    const result = publicConfig(room, config);
+    room.channel.emit('update-config', result);
+    res.json(result);
   });
 
   // Brand assets have server-owned destinations and override the bundled

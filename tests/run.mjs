@@ -148,6 +148,7 @@ try {
     const args = [String(port), roomsDir];
     await runSuite('rooms-auth', 'rooms-auth.mjs', args);
     await runSuite('rooms-api', 'rooms-api.mjs', args);
+    await runSuite('bank', 'bank.mjs', args);
     const saved = await runSuite('rooms-auth persist-create', 'rooms-auth.mjs', [...args, 'persist-create'], { capture: true });
     await stopServer();
     if (saved && !interrupted) {

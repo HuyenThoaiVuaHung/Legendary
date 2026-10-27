@@ -3,6 +3,7 @@ import { RoomSecrets } from '../contracts/api';
 import { GameRules } from '../game.rules';
 import { LegionFileService } from '../services/legion-file.service';
 import { MediaStore } from '../services/media.store';
+import { UiConfigStore } from '../services/ui-config.store';
 import { TimerService } from '../services/timer.service';
 import { GameSessionState } from '../state/game.state';
 import { MatchStore } from '../state/match.store';
@@ -41,12 +42,13 @@ export class Room {
     readonly store: MatchStore,
     readonly media: MediaStore,
     readonly rules: GameRules,
+    readonly ui: UiConfigStore,
     /** Absent for the default room, whose secrets live in server config. */
     readonly meta?: RoomMeta,
   ) {
     this.channel = io.to(id);
     this.timer = new TimerService(this.channel, store, rules);
-    this.legionFiles = new LegionFileService(store, media);
+    this.legionFiles = new LegionFileService(store, media, ui);
   }
 
   /**

@@ -16,6 +16,7 @@
  *                                      sessions are revoked (except the caller).
  * DELETE /api/rooms/current/seats/:i — free a seat; its player is logged out.
  * POST   /api/rooms/current/transfer — the owner hands the room to another host.
+ * POST   /api/rooms/current/save-to-bank — the owner saves the current match.
  */
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'crypto';
 import { Request, Response, Router } from 'express';
@@ -34,6 +35,8 @@ import {
 } from '../contracts/api';
 import { Room } from '../rooms/room';
 import { DEFAULT_ROOM_ID } from '../rooms/room.registry';
+import { BankStore } from '../services/bank.store';
+import { bankError } from './bank.routes';
 import { AccountStore } from '../services/account.store';
 import { AuthedRequest, accountOf, bearerToken, param, requireAccount, requireAuth, roomOf } from './middleware';
 import type { ApiDeps } from './index';
@@ -81,7 +84,7 @@ function createdRoomOf(req: Request, res: Response): (Room & { meta: NonNullable
   return room as Room & { meta: NonNullable<Room['meta']> };
 }
 
-export function createRoomRoutes(deps: ApiDeps, accounts: AccountStore): Router {
+export function createRoomRoutes(deps: ApiDeps, accounts: AccountStore, bank: BankStore): Router {
   const { rooms, auth, config, log } = deps;
   const router = Router();
   const adminOnly = requireAuth(auth, Role.Admin);
@@ -106,7 +109,7 @@ export function createRoomRoutes(deps: ApiDeps, accounts: AccountStore): Router 
     'Too many join attempts, try again later',
   );
 
-  router.post(API_PATHS.rooms, hostOnly, createLimiter, (req, res) => {
+  router.post(API_PATHS.rooms, hostOnly, createLimiter, async (req, res) => {
     const { accountId } = accountOf(req);
     if (rooms.ownedBy(accountId).length >= config.maxRoomsPerAccount) {
       fail(res, 409, `A host may own at most ${config.maxRoomsPerAccount} rooms`);
@@ -116,6 +119,22 @@ export function createRoomRoutes(deps: ApiDeps, accounts: AccountStore): Router 
     if (!room?.meta) {
       fail(res, 503, 'Server is at its room limit');
       return;
+    }
+    const bankItemId = req.body?.bankItemId;
+    if (bankItemId !== undefined) {
+      const archive = typeof bankItemId === 'string' ? bank.read(accountId, bankItemId) : undefined;
+      if (!archive) {
+        rooms.remove(room.id);
+        fail(res, 404, 'No such bank item');
+        return;
+      }
+      try {
+        await room.legionFiles.importArchive(archive);
+      } catch (err) {
+        rooms.remove(room.id);
+        fail(res, 400, err instanceof Error ? err.message : String(err));
+        return;
+      }
     }
     const response: CreateRoomResponse = {
       roomId: room.id,
@@ -202,6 +221,43 @@ export function createRoomRoutes(deps: ApiDeps, accounts: AccountStore): Router 
     };
     if (payload.index !== undefined) response.index = payload.index;
     res.json(response);
+  });
+
+  router.post(API_PATHS.saveToBank, adminOnly, async (req, res) => {
+    const room = createdRoomOf(req, res);
+    if (!room) return;
+    const accountId = (req as AuthedRequest).identity?.accountId;
+    if (!accountId || accountId !== room.meta.ownerAccountId) {
+      fail(res, 403, 'Only the room owner can save to the bank');
+      return;
+    }
+    const { name, bankItemId } = req.body ?? {};
+    if (bankItemId !== undefined && typeof bankItemId !== 'string') {
+      fail(res, 404, 'No such bank item');
+      return;
+    }
+    try {
+      const archive = await room.legionFiles.exportArchive();
+      const matchName = room.store.getMatch().matchName;
+      if (bankItemId !== undefined) {
+        const item = bank.replace(accountId, bankItemId, matchName, archive.buffer);
+        if (!item) {
+          fail(res, 404, 'No such bank item');
+          return;
+        }
+        res.json(item);
+      } else {
+        const item = bank.add(
+          accountId,
+          name === undefined ? matchName : name,
+          matchName,
+          archive.buffer,
+        );
+        res.status(201).json(item);
+      }
+    } catch (err) {
+      bankError(res, err);
+    }
   });
 
   router.delete(API_PATHS.currentRoom, adminOnly, (req, res) => {

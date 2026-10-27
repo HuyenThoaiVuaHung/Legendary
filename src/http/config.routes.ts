@@ -8,15 +8,18 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { Router } from 'express';
 import { join } from 'path';
-import { Role } from '../contracts/api';
+import { PublicUi, Role } from '../contracts/api';
 import { applyRuleOverrides, GameRules } from '../game.rules';
 import { LogLevel } from '../logger';
+import { Room } from '../rooms/room';
+import { publicUi } from './branding';
 import { DEFAULT_ROOM_ID } from '../rooms/room.registry';
 import { requireAuth, roomOf } from './middleware';
 import type { ApiDeps } from './index';
 
 export interface PublicConfig {
   rules: GameRules;
+  ui: PublicUi;
   playerCount: number;
   uploadLimitBytes: number;
 }
@@ -36,20 +39,18 @@ function persistRules(rules: GameRules, log: ApiDeps['log']): void {
   }
 }
 
+export function publicConfig(room: Room, config: ApiDeps['config']): PublicConfig {
+  return { rules: room.rules, ui: publicUi(room), playerCount: room.rules.playerCount, uploadLimitBytes: config.uploadLimitBytes };
+}
+
 export function createConfigRoutes(deps: ApiDeps): Router {
   const { auth, config, log } = deps;
   const router = Router();
   const adminOnly = requireAuth(auth, Role.Admin);
 
-  const publicConfig = (rules: GameRules): PublicConfig => ({
-    rules,
-    playerCount: rules.playerCount,
-    uploadLimitBytes: config.uploadLimitBytes,
-  });
-
   router.get('/api/config', (req, res) => {
     const room = roomOf(req);
-    res.json(publicConfig(room.rules));
+    res.json(publicConfig(room, config));
   });
 
   router.patch('/api/config', adminOnly, (req, res) => {
@@ -66,8 +67,8 @@ export function createConfigRoutes(deps: ApiDeps): Router {
       deps.rooms.saveMeta(room);
     }
     log(`Rules updated via settings: ${changed.join(', ')}`);
-    room.channel.emit(CONFIG_UPDATE_EVENT, publicConfig(room.rules));
-    res.json(publicConfig(room.rules));
+    room.channel.emit(CONFIG_UPDATE_EVENT, publicConfig(room, config));
+    res.json(publicConfig(room, config));
   });
 
   return router;

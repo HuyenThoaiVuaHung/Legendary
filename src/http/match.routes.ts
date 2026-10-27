@@ -31,6 +31,7 @@ import {
 import { GameRules, PLAYER_COUNT, VCNV_OBSTACLE_INDEX, VCNV_ROW_COUNT } from '../game.rules';
 import { LogLevel } from '../logger';
 import { ExcelImportService } from '../services/excel-import.service';
+import { publicConfig } from './config.routes';
 import { identityOf, param, requireAuth, roomOf } from './middleware';
 import type { ApiDeps } from './index';
 
@@ -246,6 +247,7 @@ export function createMatchRoutes(deps: ApiDeps): Router {
         }
         try {
           const result = await room.legionFiles.importArchive(file.buffer);
+          room.channel.emit('update-config', publicConfig(room, config));
           room.channel.emit(MATCH_UPDATE_EVENT, room.store.getMatch());
           for (const kind of ROUND_KINDS) {
             emitRoundUpdate(room.channel, kind, room.store.round(kind).get());

@@ -1,12 +1,13 @@
 import { randomBytes, randomInt } from 'crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { dirname, join } from 'path';
 import { Server } from 'socket.io';
 import { ServerConfig } from '../config';
 import { RoomSecrets } from '../contracts/api';
 import { RoundKind } from '../contracts/game';
 import { GameRules, loadGameRules, PLAYER_COUNT } from '../game.rules';
 import { LogFn, LogLevel } from '../logger';
+import { UiConfigStore } from '../services/ui-config.store';
 import { MediaStore } from '../services/media.store';
 import { SessionRecord, SessionStore } from '../services/session.store';
 import { MatchStore } from '../state/match.store';
@@ -62,7 +63,7 @@ export class RoomRegistry {
     const store = new MatchStore(config.matchDataPath, log);
     this.rooms.set(
       DEFAULT_ROOM_ID,
-      new Room(DEFAULT_ROOM_ID, io, store, this.mediaStore(config.mediaDir), config.rules),
+      new Room(DEFAULT_ROOM_ID, io, store, this.mediaStore(config.mediaDir), config.rules, new UiConfigStore(join(dirname(config.matchDataPath), 'ui.json'))),
     );
     this.restore();
   }
@@ -187,6 +188,7 @@ export class RoomRegistry {
       store,
       this.mediaStore(join(dir, ROOM_MEDIA_DIR)),
       meta.rules,
+      new UiConfigStore(join(dir, 'ui.json')),
       meta,
     );
     this.rooms.set(id, room);

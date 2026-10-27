@@ -135,6 +135,27 @@ export interface AccountProfile {
   rooms: OwnedRoom[];
 }
 
+export const BRAND_SLOTS = ['logo', 'logo-long', 'placeholder', 'background'] as const;
+export type BrandSlot = (typeof BRAND_SLOTS)[number];
+export interface UiConfig {
+  darkMode: boolean;
+  pallette: number;
+  miscImageSrcNames: Partial<Record<BrandSlot, string>>;
+}
+export interface PublicUi {
+  darkMode: boolean;
+  palette: number;
+  brand: Record<BrandSlot, string | null>;
+}
+export interface BankItem {
+  id: string;
+  name: string;
+  matchName: string;
+  sizeBytes: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
 /** Mutable brand assets that safely override the bundled Legion defaults. */
 export const BRAND_ASSET_KEYS = ['logo', 'wordmark', 'placeholder', 'icon'] as const;
 export type BrandAssetKey = (typeof BRAND_ASSET_KEYS)[number];
@@ -150,6 +171,10 @@ export const API_PATHS = {
   matchPlayer: (index: number) => `/api/match/players/${index}`,
   round: (kind: RoundKind) => `/api/rounds/${kind}`,
   media: (kind: RoundKind | 'misc') => `/api/media/${kind}`,
+  brand: (slot: BrandSlot) => `/api/brand/${slot}`,
+  bank: '/api/bank',
+  bankItem: (id: string) => `/api/bank/${id}`,
+  saveToBank: '/api/rooms/current/save-to-bank',
   brandAsset: (key: BrandAssetKey) => `/api/assets/${key}`,
   mediaFile: (kind: RoundKind | 'misc', name: string) =>
     `/media/${kind}/${encodeURIComponent(name)}`,
