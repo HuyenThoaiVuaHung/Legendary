@@ -1,0 +1,13 @@
+{
+  "questions": {
+    "singleplayer": [
+      [],
+      [],
+      [],
+      []
+    ],
+    "multiplayer": []
+  },
+  "gamemode": "S",
+  "activePlayerIndex": 0
+}

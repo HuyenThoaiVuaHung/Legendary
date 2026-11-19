@@ -1,0 +1,37 @@
+{
+  "questions": [],
+  "playerAnswers": [
+    {
+      "playerIndex": 0,
+      "answer": "",
+      "timestamp": 0,
+      "readableTime": "",
+      "correct": false
+    },
+    {
+      "playerIndex": 1,
+      "answer": "",
+      "timestamp": 0,
+      "readableTime": "",
+      "correct": false
+    },
+    {
+      "playerIndex": 2,
+      "answer": "",
+      "timestamp": 0,
+      "readableTime": "",
+      "correct": false
+    },
+    {
+      "playerIndex": 3,
+      "answer": "",
+      "timestamp": 0,
+      "readableTime": "",
+      "correct": false
+    }
+  ],
+  "showResults": false,
+  "activeQuestionIndex": 0,
+  "showAnswer": false,
+  "timerStartTimestamp": 0
+}

@@ -1,0 +1,12 @@
+{
+  "questionPools": [
+    [],
+    [],
+    [],
+    []
+  ],
+  "activePlayerIndex": 0,
+  "isQuestionPickerShown": false,
+  "pickedQuestions": [],
+  "hopeStarActive": false
+}
