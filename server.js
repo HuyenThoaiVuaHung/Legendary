@@ -24,14 +24,14 @@ const io = new Server(server, {
 });
 
 app.use(compression());
-// app.use(express.static(join(__dirname, "Legion", "dist", "Legion")));
-// app.use("*", (_req, res) => {
-//   res.sendFile(join(__dirname, "Legion", "dist", "Legion", "index.html"));
-// });
-app.use(express.static(join(__dirname, "Legion")));
+app.use(express.static(join(__dirname, "Legion", "dist", "Legion")));
 app.use("*", (_req, res) => {
-  res.sendFile(join(__dirname, "Legion", "index.html"));
+  res.sendFile(join(__dirname, "Legion", "dist", "Legion", "index.html"));
 });
+// app.use(express.static(join(__dirname, "Legion")));
+// app.use("*", (_req, res) => {
+//   res.sendFile(join(__dirname, "Legion", "index.html"));
+// });
 
 const date = new Date();
 if (config.saveLog)
@@ -1157,6 +1157,13 @@ io.on("connection", (socket) => {
       playPauseTime();
     }
   });
+  socket.on("clear-turn-chp", ()=>{
+    playedChp = [false, false, false, false];
+    chpTurnId = -1;
+    chpLastTurnSocketId = "";
+    io.emit("unlock-button-chp");
+    io.emit("clear-turn-chp")
+  })
   socket.on("mark-correct-chp", () => {
     io.emit("play-sfx", "VD_CORRECT");
     matchData.players[chpTurnId].score += 1;
@@ -1169,7 +1176,7 @@ io.on("connection", (socket) => {
     playPauseTime();
     io.emit("play-sfx", "VD_WRONG");
     io.emit("unlock-button-chp");
-    io.to(chpLastTurnSocketId).emit("unlock-button-chp");
+    io.to(chpLastTurnSocketId).emit("lock-button-chp");
     playedChp[chpTurnId] = true;
     chpTurnId = -1;
     chpLastTurnSocketId = "";
