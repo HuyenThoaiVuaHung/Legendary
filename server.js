@@ -1,45 +1,46 @@
-const { Server } = require("socket.io");
-const express = require("express");
-const { createServer } = require("http");
+const { Server } = require('socket.io');
+const express = require('express');
+const { createServer } = require('http');
 const log = require("./utils/logger.js").log;
-const cors = require("cors");
+const cors = require('cors');
 const fs = require("fs");
-const { join } = require("path");
+const { join } = require('path');
 const config = require("./utils/config.json");
-const compression = require("compression");
+const compression = require('compression');
 const matchDataHelper = require("./utils/matchdata.helper.js");
 const app = express();
-const os = require("os");
-app.use(
-  cors({
-    origin: ["*"],
-  }),
-);
+const os = require('os');
+app.use(cors(
+  {
+    origin: ['*']
+  }
+));
 
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*",
-  },
+    origin: "*"
+  }
 });
 
 app.use(compression());
-app.use(express.static(join(__dirname, "Legion", "dist", "Legion")));
-app.use("*", (_req, res) => {
-  res.sendFile(join(__dirname, "Legion", "dist", "Legion", "index.html"));
+app.use(express.static(join(__dirname, 'Legion', 'dist', 'Legion')))
+app.use('*', (_req, res) => {
+
+  res.sendFile(join(__dirname, 'Legion', 'dist', 'Legion', 'index.html'));
 });
 // app.use(express.static(join(__dirname, "Legion")));
 // app.use("*", (_req, res) => {
 //   res.sendFile(join(__dirname, "Legion", "index.html"));
 // });
 
+
 const date = new Date();
 if (config.saveLog)
   log(
     "Diễn biến của máy chủ sẽ được ghi lại tại " +
-      `/logs/${
-        date.getDate() + "." + (date.getMonth() + 1) + "." + date.getFullYear()
-      }.txt`,
+    `/logs/${date.getDate() + "." + (date.getMonth() + 1) + "." + date.getFullYear()
+    }.txt`
   );
 // Nhập mã bí mật ở đây
 var playerSecrets = ["123", "234", "345", "456"];
@@ -53,7 +54,8 @@ var adminId = "";
 var matchData;
 if (fs.existsSync(matchDataPath)) {
   matchData = JSON.parse(fs.readFileSync(matchDataPath));
-} else {
+}
+else {
   matchData = matchDataHelper.provideNewMatchData();
   fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
 }
@@ -131,14 +133,14 @@ io.on("connection", (socket) => {
       fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
       log(
         "Player " +
-          matchData.players[playerSecrets.indexOf(authID)].name +
-          " connected at " +
-          socket.id,
+        matchData.players[playerSecrets.indexOf(authID)].name +
+        " connected at " +
+        socket.id
       );
       callback({
         roleId: 0,
         matchData: matchData,
-        index: playerSecrets.indexOf(authID),
+        index: playerSecrets.indexOf(authID)
       });
       io.emit("update-match-data", matchData);
     } else if (authID == adminSecret) {
@@ -149,6 +151,7 @@ io.on("connection", (socket) => {
         roleId: 1,
         matchData: matchData,
       });
+
     } else if (authID == mcSecret) {
       // MC
       log("MC connected at " + socket.id);
@@ -176,10 +179,10 @@ io.on("connection", (socket) => {
     if (socketIDs.includes(socket.id)) {
       log(
         "Player " +
-          matchData.players[socketIDs.indexOf(socket.id)].name +
-          " disconnected at " +
-          socket.id,
-        1,
+        matchData.players[socketIDs.indexOf(socket.id)].name +
+        " disconnected at " +
+        socket.id,
+        1
       );
       matchData.players[socketIDs.indexOf(socket.id)].isReady = false;
       fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
@@ -211,19 +214,19 @@ io.on("connection", (socket) => {
     if (socket.id == adminId) {
       try {
         const excelHandler = await import("./utils/excelHandler.mjs");
-        let [kdData, vcnvData, ttData, vdData, chpData] = excelHandler.default(
-          recievedJSON,
-          matchDataPath,
-        );
+        let [kdData, vcnvData, ttData, vdData, chpData] = excelHandler.default(recievedJSON, matchDataPath);
         io.emit("update-kd-data-admin", kdData);
         io.emit("update-vcnv-data", vcnvData);
         io.emit("update-tangtoc-data", ttData);
         io.emit("update-vedich-data", vdData);
         io.emit("update-chp-data", chpData);
-      } catch (e) {
+      }
+      catch (e) {
         console.log(e);
       }
+
     }
+
   });
 
   socket.on("start-clock", (time) => {
@@ -243,10 +246,8 @@ io.on("connection", (socket) => {
     if (adminId == socket.id) {
       callback(
         JSON.parse(
-          fs.readFileSync(
-            JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath,
-          ),
-        ),
+          fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath)
+        )
       );
     }
     // Will implement encryption later
@@ -255,12 +256,12 @@ io.on("connection", (socket) => {
   socket.on("change-kd-gamemode", (gamemode, callback) => {
     if (adminId == socket.id) {
       var kd_data = JSON.parse(
-        fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath),
+        fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath)
       );
       kd_data.gamemode = gamemode;
       fs.writeFileSync(
         JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath,
-        JSON.stringify(kd_data),
+        JSON.stringify(kd_data)
       );
       io.emit("update-kd-data-admin", kd_data);
       io.emit("update-kd-gamemode", gamemode);
@@ -269,36 +270,37 @@ io.on("connection", (socket) => {
   socket.on("get-kd-gamemode", (callback) => {
     callback(
       JSON.parse(
-        fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath),
-      ).gamemode,
+        fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath)
+      ).gamemode
     );
   });
   socket.on("edit-kd-question", (payload, callback) => {
     if (adminId == socket.id) {
       var kd_data = JSON.parse(
-        fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath),
+        fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath)
       );
       kd_data.questions[payload.index] = payload.question;
       fs.writeFileSync(
         JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath,
-        JSON.stringify(kd_data),
+        JSON.stringify(kd_data)
       );
       socket.emit("update-kd-data-admin", kd_data);
       callback({
         message: "Success",
       });
     }
+
   });
-  socket.on("update-kd-data", (data) => {
+  socket.on('update-kd-data', (data) => {
+
     fs.writeFileSync(
       JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath,
-      JSON.stringify(data),
+      JSON.stringify(data)
     );
-    socket.emit(
-      "update-kd-data-admin",
-      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath),
-    );
-  });
+    socket.emit("update-kd-data-admin", fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath));
+
+
+  })
   socket.on("edit-player-info", (payload, callback) => {
     if (adminId == socket.id) {
       matchData.players[payload.index] = payload.player;
@@ -324,29 +326,30 @@ io.on("connection", (socket) => {
       io.emit("disable-answer-button-kd");
       io.emit(
         "player-got-turn-kd",
-        matchData.players[socketIDs.indexOf(socket.id)],
+        matchData.players[socketIDs.indexOf(socket.id)]
       );
       console.log(lastTurnId);
-    } else log("Player " + socketIDs.indexOf(socket.id) + " requested turn", 0);
+    }
+    else log("Player " + socketIDs.indexOf(socket.id) + " requested turn", 0);
   });
 
-  socket.on("get-kd-data", (callback) => {
+  socket.on('get-kd-data', (callback) => {
     const kd_data = JSON.parse(
-      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath),
+      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath)
     );
     kd_data.questions = undefined;
     callback(kd_data);
-  });
+  })
 
   socket.on("change-singleplayer-kd-turn", (playerId) => {
     if (socket.id == adminId) {
       const kdData = JSON.parse(
-        fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath),
+        fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath)
       );
       kdData.currentSingleplayerPlayer = playerId - 1;
       fs.writeFileSync(
         JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath,
-        JSON.stringify(kdData),
+        JSON.stringify(kdData)
       );
       socket.emit("update-kd-data-admin", kdData);
       kdData.questions = undefined;
@@ -354,7 +357,10 @@ io.on("connection", (socket) => {
     }
   });
   socket.on("clear-turn-kd", () => {
-    log("Cleared turn khoi dong", 0);
+    log(
+      "Cleared turn khoi dong",
+      0
+    );
 
     lastTurnId = "";
     io.emit("clear-turn-player-kd");
@@ -363,7 +369,7 @@ io.on("connection", (socket) => {
   socket.on("correct-mark-kd", () => {
     io.emit("enable-answer-button-kd");
     var kdData = JSON.parse(
-      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath),
+      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath)
     );
     kdCurrentQuestionNo++;
     log("Current question no: " + kdCurrentQuestionNo);
@@ -371,17 +377,18 @@ io.on("connection", (socket) => {
     io.emit(
       "update-number-question-kd",
       kdCurrentMaxQuesNo,
-      kdCurrentQuestionNo,
+      kdCurrentQuestionNo
     );
     if (kdData.gamemode == "S") {
       matchData.players[kdData.currentSingleplayerPlayer].score += 10;
       log(
         "Player " +
-          matchData.players[kdData.currentSingleplayerPlayer].name +
-          " got 10 points",
-        0,
+        matchData.players[kdData.currentSingleplayerPlayer].name +
+        " got 10 points",
+        0
       );
-    } else if (lastTurnId && kdData.gamemode == "M") {
+    }
+    else if (lastTurnId && kdData.gamemode == "M") {
       if (!socketIDs.includes(lastTurnId)) {
         log("Player " + lastTurnId + " is not in the list", 2);
         return;
@@ -389,9 +396,9 @@ io.on("connection", (socket) => {
       matchData.players[socketIDs.indexOf(lastTurnId)].score += 10;
       log(
         "Player " +
-          matchData.players[socketIDs.indexOf(lastTurnId)].name +
-          " got 10 points",
-        0,
+        matchData.players[socketIDs.indexOf(lastTurnId)].name +
+        " got 10 points",
+        0
       );
     }
 
@@ -403,19 +410,20 @@ io.on("connection", (socket) => {
   socket.on("wrong-mark-kd", () => {
     io.emit("enable-answer-button-kd");
     var kdData = JSON.parse(
-      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath),
+      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).KDFilePath)
     );
     if (kdData.gamemode == "M") {
       if (!socketIDs.includes(lastTurnId)) {
         log("Player " + lastTurnId + " is not in the list", 2);
         return;
-      } else if (matchData.players[socketIDs.indexOf(lastTurnId)].score > 0) {
+      }
+      else if (matchData.players[socketIDs.indexOf(lastTurnId)].score > 0) {
         matchData.players[socketIDs.indexOf(lastTurnId)].score -= 5;
         log(
           "Player " +
-            matchData.players[socketIDs.indexOf(lastTurnId)].name +
-            " lost 5 points",
-          0,
+          matchData.players[socketIDs.indexOf(lastTurnId)].name +
+          " lost 5 points",
+          0
         );
       }
     }
@@ -424,7 +432,7 @@ io.on("connection", (socket) => {
     io.emit(
       "update-number-question-kd",
       kdCurrentMaxQuesNo,
-      kdCurrentQuestionNo,
+      kdCurrentQuestionNo
     );
     fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
     io.emit("update-match-data", matchData);
@@ -453,16 +461,13 @@ io.on("connection", (socket) => {
     lastTurnId = '';
   })
   */
-  socket.on("update-number-question-kd", (maxQuesNo, currentQuesNo) => {
+  socket.on('update-number-question-kd', (maxQuesNo, currentQuesNo) => {
     kdCurrentMaxQuesNo = maxQuesNo;
     kdCurrentQuestionNo = currentQuesNo;
-    io.emit(
-      "update-number-question-kd",
-      kdCurrentMaxQuesNo,
-      kdCurrentQuestionNo,
-    );
-  });
+    io.emit('update-number-question-kd', kdCurrentMaxQuesNo, kdCurrentQuestionNo);
+  })
   socket.on("start-3s-timer-kd", (ifPlayer) => {
+
     if (ifPlayer) {
       threeSecTimerType = "P";
       let counter = 30;
@@ -507,7 +512,7 @@ io.on("connection", (socket) => {
             io.emit(
               "update-number-question-kd",
               kdCurrentMaxQuesNo,
-              kdCurrentQuestionNo,
+              kdCurrentQuestionNo
             );
           }
           // lastTurnId = "";
@@ -532,7 +537,7 @@ io.on("connection", (socket) => {
           io.emit(
             "update-number-question-kd",
             kdCurrentMaxQuesNo,
-            kdCurrentQuestionNo,
+            kdCurrentQuestionNo
           );
           // lastTurnId = "";
           clearInterval(interval);
@@ -552,7 +557,7 @@ io.on("connection", (socket) => {
     io.emit(
       "update-number-question-kd",
       kdCurrentMaxQuesNo,
-      kdCurrentQuestionNo,
+      kdCurrentQuestionNo
     );
     io.emit("enable-answer-button-kd");
     io.emit("update-questions-number-kd", questionNo);
@@ -560,10 +565,8 @@ io.on("connection", (socket) => {
   socket.on("get-vcnv-data", (callback) => {
     callback(
       JSON.parse(
-        fs.readFileSync(
-          JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath,
-        ),
-      ),
+        fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath)
+      )
     );
   });
   socket.on("mark-answer-vcnv", (payload) => {
@@ -605,7 +608,7 @@ io.on("connection", (socket) => {
     }
     fs.writeFileSync(
       JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath,
-      JSON.stringify(vcnvData),
+      JSON.stringify(vcnvData)
     );
     io.emit("update-vcnv-data", vcnvData);
   });
@@ -615,9 +618,9 @@ io.on("connection", (socket) => {
         "update-vcnv-question",
         JSON.parse(
           fs.readFileSync(
-            JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath,
-          ),
-        ).questions[questionId - 1],
+            JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath
+          )
+        ).questions[questionId - 1]
       );
     } else {
       io.emit("update-vcnv-question", { question: "" });
@@ -628,45 +631,45 @@ io.on("connection", (socket) => {
   });
   socket.on("submit-answer-vcnv", (answer) => {
     let vcnvData = JSON.parse(
-      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath),
+      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath)
     );
     vcnvData.playerAnswers[socketIDs.indexOf(socket.id)].answer = answer;
     fs.writeFileSync(
       JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath,
-      JSON.stringify(vcnvData),
+      JSON.stringify(vcnvData)
     );
     io.emit("update-vcnv-data", vcnvData);
   });
   socket.on("open-hn-vcnv", (id) => {
     let vcnvData = JSON.parse(
-      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath),
+      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath)
     );
     vcnvData.questions[id - 1].ifOpen = true;
     fs.writeFileSync(
       JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath,
-      JSON.stringify(vcnvData),
+      JSON.stringify(vcnvData)
     );
     fs.writeFileSync(
       JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath,
-      JSON.stringify(vcnvData),
+      JSON.stringify(vcnvData)
     );
     io.emit("update-vcnv-data", vcnvData);
   });
   socket.on("close-hn-vcnv", (id) => {
     let vcnvData = JSON.parse(
-      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath),
+      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath)
     );
     vcnvData.questions[id - 1].ifOpen = false;
     io.emit("update-vcnv-data", vcnvData);
     fs.writeFileSync(
       JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath,
-      JSON.stringify(vcnvData),
+      JSON.stringify(vcnvData)
     );
   });
   socket.on("clear-player-answer", (playerIndex) => {
     //read vcnvFile
     let vcnvData = JSON.parse(
-      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath),
+      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath)
     );
     if (!socketIDs.includes(socket.id)) {
       log("Player " + socket.id + " is not in the list", 2);
@@ -676,13 +679,13 @@ io.on("connection", (socket) => {
     vcnvData.playerAnswers[socketIDs.indexOf(socket.id)].correct = false;
     fs.writeFileSync(
       JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath,
-      JSON.stringify(vcnvData),
+      JSON.stringify(vcnvData)
     );
     io.emit("update-vcnv-data", vcnvData);
   });
   socket.on("submit-mark-vcnv-admin", (payload) => {
     let vcnvData = JSON.parse(
-      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath),
+      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath)
     );
     vcnvData.playerAnswers = payload;
     for (let i = 0; i <= 3; i++) {
@@ -694,18 +697,18 @@ io.on("connection", (socket) => {
     io.emit("update-match-data", matchData);
     fs.writeFileSync(
       JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath,
-      JSON.stringify(vcnvData),
+      JSON.stringify(vcnvData)
     );
     fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
   });
   socket.on("toggle-results-display-vcnv", () => {
     let vcnvData = JSON.parse(
-      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath),
+      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath)
     );
     vcnvData.showResults = !vcnvData.showResults;
     fs.writeFileSync(
       JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath,
-      JSON.stringify(vcnvData),
+      JSON.stringify(vcnvData)
     );
     io.emit("update-vcnv-data", vcnvData);
     log(vcnvData.showResults);
@@ -713,7 +716,7 @@ io.on("connection", (socket) => {
   socket.on("attempt-cnv-player", () => {
     let timestamp = Date.now();
     let vcnvData = JSON.parse(
-      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath),
+      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath)
     );
     let time = new Date(timestamp);
     vcnvData.disabledPlayers.push(socketIDs.indexOf(socket.id));
@@ -732,13 +735,13 @@ io.on("connection", (socket) => {
     vcnvData.CNVPlayers.sort(sortByTimestamp);
     fs.writeFileSync(
       JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath,
-      JSON.stringify(vcnvData),
+      JSON.stringify(vcnvData)
     );
     io.emit("update-vcnv-data", vcnvData);
   });
   socket.on("submit-cnv-mark", (vcnvMark) => {
     let vcnvData = JSON.parse(
-      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath),
+      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath)
     );
     for (let i = 0; i < vcnvMark.length; i++) {
       if (vcnvMark[i] != null) {
@@ -746,9 +749,9 @@ io.on("connection", (socket) => {
           matchData.players[i].score += vcnvData.questions[5].value;
           log(
             "Player " +
-              matchData.players[i].name +
-              `got ${vcnvData.questions[5].value} points`,
-            0,
+            matchData.players[i].name +
+            `got ${vcnvData.questions[5].value} points`,
+            0
           );
         } else {
           vcnvData.disabledPlayers.push(i);
@@ -758,7 +761,7 @@ io.on("connection", (socket) => {
     vcnvData.CNVPlayers = [];
     fs.writeFileSync(
       JSON.parse(fs.readFileSync(matchDataPath)).VCNVFilePath,
-      JSON.stringify(vcnvData),
+      JSON.stringify(vcnvData)
     );
     fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
     io.emit("update-vcnv-data", vcnvData);
@@ -768,15 +771,15 @@ io.on("connection", (socket) => {
     callback(
       JSON.parse(
         fs.readFileSync(
-          JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath,
-        ),
-      ),
+          JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath
+        )
+      )
     );
   });
   socket.on("update-tangtoc-data", (data, callback) => {
     fs.writeFileSync(
       JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath,
-      JSON.stringify(data),
+      JSON.stringify(data)
     );
     io.emit("update-tangtoc-data", data);
 
@@ -790,8 +793,8 @@ io.on("connection", (socket) => {
     let timestamp = Date.now();
     let tangtocData = JSON.parse(
       fs.readFileSync(
-        JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath,
-      ),
+        JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath
+      )
     );
     if (!socketIDs.includes(socket.id)) {
       log("Player " + socket.id + " is not in the list", 2);
@@ -811,7 +814,7 @@ io.on("connection", (socket) => {
       time.getMilliseconds();
     fs.writeFileSync(
       JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath,
-      JSON.stringify(tangtocData),
+      JSON.stringify(tangtocData)
     );
     io.emit("update-tangtoc-data", tangtocData);
   });
@@ -819,21 +822,21 @@ io.on("connection", (socket) => {
     let timestamp = Date.now() + 1000;
     let tangtocData = JSON.parse(
       fs.readFileSync(
-        JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath,
-      ),
+        JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath
+      )
     );
     tangtocData.timerStartTimestamp = timestamp;
     fs.writeFileSync(
       JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath,
-      JSON.stringify(tangtocData),
+      JSON.stringify(tangtocData)
     );
     io.emit("update-tangtoc-data", tangtocData);
   });
   socket.on("submit-mark-tangtoc-admin", () => {
     let tangtocData = JSON.parse(
       fs.readFileSync(
-        JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath,
-      ),
+        JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath
+      )
     );
     let markCounter = 4;
     let markData = tangtocData.playerAnswers.sort(sortByTimestamp);
@@ -842,9 +845,9 @@ io.on("connection", (socket) => {
         matchData.players[markData[i].id - 1].score += markCounter * 10;
         log(
           "Player " +
-            matchData.players[markData[i].id - 1].name +
-            ` got ${markCounter * 10} points`,
-          0,
+          matchData.players[markData[i].id - 1].name +
+          ` got ${markCounter * 10} points`,
+          0
         );
         markCounter--;
       }
@@ -855,13 +858,13 @@ io.on("connection", (socket) => {
   socket.on("toggle-results-display-tangtoc", () => {
     let tangtocData = JSON.parse(
       fs.readFileSync(
-        JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath,
-      ),
+        JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath
+      )
     );
     tangtocData.showResults = !tangtocData.showResults;
     fs.writeFileSync(
       JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath,
-      JSON.stringify(tangtocData),
+      JSON.stringify(tangtocData)
     );
     io.emit("update-tangtoc-data", tangtocData);
   });
@@ -869,8 +872,8 @@ io.on("connection", (socket) => {
     if (id != -1) {
       let tangtocData = JSON.parse(
         fs.readFileSync(
-          JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath,
-        ),
+          JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath
+        )
       );
       io.emit("update-tangtoc-question", tangtocData.questions[id - 1]);
     } else {
@@ -880,8 +883,8 @@ io.on("connection", (socket) => {
   socket.on("clear-answer-tt", () => {
     let tangtocData = JSON.parse(
       fs.readFileSync(
-        JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath,
-      ),
+        JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath
+      )
     );
     let resetedData = [
       {
@@ -918,7 +921,7 @@ io.on("connection", (socket) => {
     }
     fs.writeFileSync(
       JSON.parse(fs.readFileSync(matchDataPath)).TangTocFilePath,
-      JSON.stringify(tangtocData),
+      JSON.stringify(tangtocData)
     );
     io.emit("update-tangtoc-data", tangtocData);
   });
@@ -929,15 +932,15 @@ io.on("connection", (socket) => {
     callback(
       JSON.parse(
         fs.readFileSync(
-          JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath,
-        ),
-      ),
+          JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath
+        )
+      )
     );
   });
   socket.on("update-vedich-data", (data) => {
     fs.writeFileSync(
       JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath,
-      JSON.stringify(data),
+      JSON.stringify(data)
     );
     io.emit("update-vedich-data", data);
   });
@@ -946,12 +949,12 @@ io.on("connection", (socket) => {
     if (id != -1) {
       let vedichData = JSON.parse(
         fs.readFileSync(
-          JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath,
-        ),
+          JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath
+        )
       );
       io.emit(
         "update-vedich-question",
-        vedichData.questionPools[vedichData.currentPlayerId - 1][id],
+        vedichData.questionPools[vedichData.currentPlayerId - 1][id]
       );
       currentVdQuestion =
         vedichData.questionPools[vedichData.currentPlayerId - 1][id];
@@ -960,14 +963,14 @@ io.on("connection", (socket) => {
       currentVdQuestion = {};
       let vedichData = JSON.parse(
         fs.readFileSync(
-          JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath,
-        ),
+          JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath
+        )
       );
       if (vedichData.ifNSHV == true) {
         vedichData.ifNSHV = false;
         fs.writeFileSync(
           JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath,
-          JSON.stringify(vedichData),
+          JSON.stringify(vedichData)
         );
         io.emit("update-vedich-data", vedichData);
       }
@@ -976,16 +979,14 @@ io.on("connection", (socket) => {
   socket.on("mark-correct-vd", (id, value) => {
     log("Chấm cho ts: " + id);
     let vedichData = JSON.parse(
-      fs.readFileSync(
-        JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath,
-      ),
+      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath)
     );
     if (vedichData.ifNSHV == true && lastStealingPlayerId == -1) {
       log("Chấm điểm nshv cho thí sinh + " + id);
       matchData.players[id - 1].score += value * 2;
       log(
         "Player " + matchData.players[id - 1].name + ` got ${value * 2} points`,
-        0,
+        0
       );
 
       vedichData.ifNSHV = false;
@@ -993,20 +994,12 @@ io.on("connection", (socket) => {
       if (lastStealingPlayerId != -1) {
         log("Chấm điểm đúng thí sinh cướp câu hỏi " + id);
         matchData.players[id - 1].score += value;
-        log(
-          "Player " + matchData.players[id - 1].name + ` got ${value} points`,
-          0,
-        );
-        if (
-          !vedichData.ifNSHV &&
-          matchData.players[vedichData.currentPlayerId - 1].score > value
-        ) {
+        log("Player " + matchData.players[id - 1].name + ` got ${value} points`, 0);
+        if (!vedichData.ifNSHV && matchData.players[vedichData.currentPlayerId - 1].score > value) {
           matchData.players[vedichData.currentPlayerId - 1].score -= value;
           log(
-            "Player " +
-              matchData.players[vedichData.currentPlayerId - 1].name +
-              ` lost ${value} points`,
-            0,
+            "Player " + matchData.players[vedichData.currentPlayerId - 1].name + ` lost ${value} points`,
+            0
           );
         } else {
           matchData.players[vedichData.currentPlayerId - 1].score = 0;
@@ -1014,17 +1007,14 @@ io.on("connection", (socket) => {
       } else {
         log("Chấm điểm đúng thí sinh " + id);
         matchData.players[id - 1].score += value;
-        log(
-          "Player " + matchData.players[id - 1].name + ` got ${value} points`,
-          0,
-        );
+        log("Player " + matchData.players[id - 1].name + ` got ${value} points`, 0);
       }
     }
     vedichData.ifNSHV = false;
     lastStealingPlayerId = -1;
     fs.writeFileSync(
       JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath,
-      JSON.stringify(vedichData),
+      JSON.stringify(vedichData)
     );
     fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
     io.emit("update-vedich-data", vedichData);
@@ -1040,18 +1030,16 @@ io.on("connection", (socket) => {
     }
     log(
       "Player " + matchData.players[id - 1].name + ` lost ${value / 2} points`,
-      0,
+      0
     );
     lastStealingPlayerId = -1;
     let vedichData = JSON.parse(
-      fs.readFileSync(
-        JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath,
-      ),
+      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath)
     );
     vedichData.ifNSHV = false;
     fs.writeFileSync(
       JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath,
-      JSON.stringify(vedichData),
+      JSON.stringify(vedichData)
     );
     io.emit("update-vedich-data", vedichData);
     io.emit("update-match-data", matchData);
@@ -1066,9 +1054,10 @@ io.on("connection", (socket) => {
       io.emit("player-steal-question", socketIDs.indexOf(socket.id));
     }
   });
-  socket.on("reset-stealing-player", () => {
+  socket.on('reset-stealing-player', () => {
     lastStealingPlayerId = -1;
     io.emit("clear-stealing-player");
+
   });
   socket.on("vd-play-video", () => {
     io.emit("vd-play-video");
@@ -1078,23 +1067,21 @@ io.on("connection", (socket) => {
     ifFiveSecActive = true;
     io.emit("unlock-button-vd");
     let vdData = JSON.parse(
-      fs.readFileSync(
-        JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath,
-      ),
+      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath)
     );
     if (vdData.ifNSHV == true) {
       matchData.players[vdData.currentPlayerId - 1].score -=
         currentVdQuestion.value;
       log(
         "Player " +
-          matchData.players[vdData.currentPlayerId - 1].name +
-          ` lost ${currentVdQuestion.value} points`,
-        0,
+        matchData.players[vdData.currentPlayerId - 1].name +
+        ` lost ${currentVdQuestion.value} points`,
+        0
       );
 
       fs.writeFileSync(
         JSON.parse(fs.readFileSync(matchDataPath)).VedichFilePath,
-        JSON.stringify(vdData),
+        JSON.stringify(vdData)
       );
       fs.writeFileSync(matchDataPath, JSON.stringify(matchData));
       io.emit("update-vedich-data", vdData);
@@ -1125,20 +1112,20 @@ io.on("connection", (socket) => {
   socket.on("get-chp-data", (callback) => {
     callback(
       JSON.parse(
-        fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).ChpFilePath),
-      ),
+        fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).ChpFilePath)
+      )
     );
   });
   socket.on("update-chp-data", (data) => {
     fs.writeFileSync(
       JSON.parse(fs.readFileSync(matchDataPath)).ChpFilePath,
-      JSON.stringify(data),
+      JSON.stringify(data)
     );
     io.emit("update-chp-data", data);
   });
   socket.on("broadcast-chp-question", (id) => {
     const chpData = JSON.parse(
-      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).ChpFilePath),
+      fs.readFileSync(JSON.parse(fs.readFileSync(matchDataPath)).ChpFilePath)
     );
     io.emit("update-chp-question", chpData.questions[id]);
     playedChp = [false, false, false, false];
@@ -1188,23 +1175,23 @@ io.on("connection", (socket) => {
 });
 
 server.listen(80, () => {
-  log("Server Legion khởi động thành công.", 0);
+  log('Server Legion khởi động thành công.', 0);
   log("Server Legendary khởi động thành công, đang chờ kết nối mới..");
 
   const nets = os.networkInterfaces();
 
   // for (const name of Object.keys(nets)) {
   //   for (const net of nets[name]) {
-  //     if (net.family === "IPv4" && !net.internal)
-  //       log("Địa chỉ IP của máy chủ: http://" + net.address, 1);
+  //     if (net.family === 'IPv4' && !net.internal)
+  //       log('Địa chỉ IP của máy chủ: http://' + net.address, 1);
   //   }
   // }
   let IPpromax = null;
   Object.values(nets).forEach((net) => {
     net
-      .filter((item) => item.family === "IPv4" && !item.internal)
+      .filter((item) => item.family === 'IPv4' && !item.internal)
       .forEach((item) => {
-        log("Địa chỉ IP của máy chủ: http://" + item.address, 1);
+        log('Địa chỉ IP của máy chủ: http://' + item.address, 1);
         IPpromax = item.address;
       });
   });
