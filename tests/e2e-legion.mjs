@@ -109,7 +109,7 @@ const tt = await fetch(`${base}/api/rounds/tt`, { headers: auth }).then((r) => r
 check('tt round imported with image', tt.questions?.[0]?.questionImage === 'tt1.png', JSON.stringify(tt.questions?.[0]));
 
 const vcnv = await fetch(`${base}/api/rounds/vcnv`, { headers: auth }).then((r) => r.json());
-check('vcnv has 6 questions with CNV last', vcnv.questions?.length === 6 && vcnv.questions[5].type === 'CNV' && vcnv.questions[5].answer === 'HOANG SA', JSON.stringify(vcnv.questions?.[5]));
+check('vcnv has 5 rows and obstacle', vcnv.questions?.length === 5 && vcnv.obstacle?.answer === 'HOANG SA', JSON.stringify(vcnv.obstacle));
 
 const importedMedia = await fetch(`${base}/media/tt/tt1.png`);
 check('imported media served', importedMedia.status === 200);

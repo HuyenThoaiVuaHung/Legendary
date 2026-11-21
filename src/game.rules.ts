@@ -23,6 +23,8 @@ export interface GameRules {
 
   /** Points by finishing order for the Tăng tốc round (1st, 2nd, …). */
   ttPointsByPlacement: number[];
+  /** Countdown while the Tăng tốc video question plays. */
+  ttVideoSeconds: number;
 
   vdStealTicks: number;
   vdWrongPenaltyDivisor: number;
@@ -46,6 +48,7 @@ export const DEFAULT_GAME_RULES: GameRules = {
   obstacleValueByRevealedCount: { 0: 50, 1: 50, 2: 40, 3: 30, 4: 20, 5: 10 },
 
   ttPointsByPlacement: [40, 30, 20, 10],
+  ttVideoSeconds: 30,
 
   vdStealTicks: 50,
   vdWrongPenaltyDivisor: 2,
@@ -85,6 +88,7 @@ export const TUNABLE_NUMBER_FIELDS = {
   kdDecisionTicks: { minimum: 1 },
   kdClockStartDelayMs: { minimum: 0 },
   vcnvRowPoints: { minimum: 0 },
+  ttVideoSeconds: { minimum: 1 },
   vdStealTicks: { minimum: 1 },
   vdWrongPenaltyDivisor: { minimum: 1 },
   vdHopeStarMultiplier: { minimum: 1 },
@@ -152,7 +156,5 @@ export function applyRuleOverrides(rules: GameRules, patch: Partial<GameRules>):
 export const PLAYER_COUNT = DEFAULT_GAME_RULES.playerCount;
 /** Number of hàng ngang rows; fixed by the board layout. */
 export const VCNV_ROW_COUNT = 5;
-/** Index of the central obstacle question inside VcnvRound.questions. */
-export const VCNV_OBSTACLE_INDEX = 5;
 /** Reveal-piece count, fixed by the 4-corners-plus-centre geometry. */
 export const VCNV_PIECE_COUNT = 5;

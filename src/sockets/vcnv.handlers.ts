@@ -14,7 +14,7 @@
  */
 import { Role } from '../contracts/api';
 import { ObstacleBuzz, PlayerAnswer, VcnvQuestion } from '../contracts/game';
-import { PLAYER_COUNT, VCNV_OBSTACLE_INDEX, VCNV_ROW_COUNT } from '../game.rules';
+import { PLAYER_COUNT, VCNV_ROW_COUNT } from '../game.rules';
 import { LogLevel } from '../logger';
 import { NO_PLAYER } from '../state/game.state';
 import { HandlerContext, isAdmin } from './context';
@@ -160,7 +160,7 @@ export function registerVcnvHandlers(ctx: HandlerContext): void {
 
   socket.on('submit-cnv-mark', (marks: Array<boolean | null>) => {
     if (!isAdmin(ctx)) return;
-    const obstacleValue = vcnv.get().questions[VCNV_OBSTACLE_INDEX].value;
+    const obstacleValue = vcnv.get().obstacle.value;
     const data = vcnv.update((d) => {
       for (let i = 0; i < marks.length; i++) {
         if (marks[i] === false) d.disabledPlayers.push(i);

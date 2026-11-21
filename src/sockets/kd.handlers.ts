@@ -9,13 +9,6 @@ import { HandlerContext, isAdmin } from './context';
 const SFX_GET_TURN = 'KD_GET_TURN';
 const SFX_WRONG = 'KD_WRONG';
 
-/**
- * Handle of the running post-buzz decision countdown, if any. Shared module
- * state, like the VD steal countdown: one match per server process, and only
- * one decision window can be live at a time.
- */
-let decisionCountdown: NodeJS.Timeout | undefined;
-
 /** Player index of the acting socket, or NO_PLAYER when it isn't a player. */
 function resolvePlayerIndex(ctx: HandlerContext): number {
   if (ctx.identity.roleId === Role.Player && ctx.identity.index !== undefined) {
@@ -155,11 +148,11 @@ export function registerKdHandlers(ctx: HandlerContext): void {
     io.emit('update-questions-number-kd', questionCount);
   });
 
-  // Post-buzz decision window: rules.kdDecisionTicks × rules.decisionTickMs. The
-  // player variant times out into a wrong answer for the turn holder; the
-  // admin variant is a neutral countdown that simply advances the question.
+  // Post-buzz decision window: rules.kdDecisionTicks × rules.decisionTickMs.
+  // Expiry of either variant only plays the wrong cue; the admin marks the
+  // answer or skips the question manually.
   socket.on('start-3s-timer-kd', (isPlayerTimer: boolean) => {
-    if (decisionCountdown !== undefined) clearInterval(decisionCountdown);
+    if (session.kdDecisionCountdown !== undefined) clearInterval(session.kdDecisionCountdown);
     let counter = rules.kdDecisionTicks;
     session.kdDecisionTimerOwner = isPlayerTimer
       ? DecisionTimerOwner.Player
@@ -181,47 +174,33 @@ export function registerKdHandlers(ctx: HandlerContext): void {
         } else if (counter === 0) {
           // Window expired: the holder never answered — counts as wrong.
           clearInterval(handle);
-          if (timer.remainingSeconds() > 0) {
-            io.emit('enable-answer-button-kd');
-            io.emit('next-question');
-          }
+          if (timer.remainingSeconds() > 0) io.emit('enable-answer-button-kd');
+          // Expiry only signals the miss: the admin decides what happens next
+          // (score, next question, turn), so nothing is deducted, advanced or
+          // cleared here.
           if (session.kdDecisionTimerOwner === DecisionTimerOwner.Player) {
             session.kdDecisionTimerOwner = DecisionTimerOwner.None;
-            const holder = session.kdTurnPlayerIndex;
-            if (holder === NO_PLAYER) {
-              log('KD decision window expired with no turn holder', LogLevel.Error);
-            } else {
-              penalizePlayer(holder);
-            }
             io.emit('update-match-data', store.getMatch());
             io.emit('play-sfx', SFX_WRONG);
-            session.kdCurrentQuestionNo += 1;
             emitQuestionNumbers();
           }
-          session.kdTurnPlayerIndex = NO_PLAYER;
-          io.emit('clear-turn-player-kd');
         }
       } else {
         if (counter === 0) {
           // Note: like the old server, natural expiry of the admin variant
           // leaves the decision owner set; 'stop-3s-timer-kd' clears it.
           clearInterval(handle);
-          if (timer.remainingSeconds() > 0) {
-            io.emit('next-question');
-            io.emit('enable-answer-button-kd');
-          }
-          io.emit('clear-turn-player-kd');
+          // Same as the player variant: the admin advances the question.
+          if (timer.remainingSeconds() > 0) io.emit('enable-answer-button-kd');
           io.emit('play-sfx', SFX_WRONG);
-          session.kdCurrentQuestionNo += 1;
           emitQuestionNumbers();
-          session.kdTurnPlayerIndex = NO_PLAYER;
         } else if (session.kdDecisionTimerOwner !== DecisionTimerOwner.Admin) {
           clearInterval(handle);
           io.emit('update-3s-timer-kd', 0, false);
         }
       }
     }, rules.decisionTickMs);
-    decisionCountdown = handle;
+    session.kdDecisionCountdown = handle;
   });
 
   socket.on('stop-3s-timer-kd', () => {

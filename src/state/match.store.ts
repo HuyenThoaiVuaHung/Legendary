@@ -38,6 +38,12 @@ export class MatchStore {
   constructor(
     private readonly matchFilePath: string,
     private readonly log: LogFn,
+    /**
+     * Fixed round-file location for room-owned stores. When set, the persisted
+     * `roundFiles` paths are ignored, so a room can never read or write
+     * another room's data. Omitted for the default room (legacy layout).
+     */
+    private readonly roundFileOf?: (kind: RoundKind) => string,
   ) {
     this.match = this.loadMatchFile();
     this.rounds = Object.fromEntries(
@@ -104,8 +110,12 @@ export class MatchStore {
     return state;
   }
 
+  private roundPath(kind: RoundKind): string {
+    return this.roundFileOf?.(kind) ?? this.match.roundFiles[kind];
+  }
+
   private loadRoundFile<K extends RoundKind>(kind: K): RoundDataMap[K] {
-    const path = this.match.roundFiles[kind];
+    const path = this.roundPath(kind);
     if (!existsSync(path)) {
       this.log(`No ${kind} round file at ${path}; creating defaults.`, LogLevel.Warn);
       const fresh = defaultRoundData(kind);
@@ -126,7 +136,7 @@ export class MatchStore {
   }
 
   private persistRound(kind: RoundKind): void {
-    this.writeJson(this.match.roundFiles[kind], this.rounds[kind]);
+    this.writeJson(this.roundPath(kind), this.rounds[kind]);
   }
 
   private writeJson(path: string, value: unknown): void {

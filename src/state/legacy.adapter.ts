@@ -33,6 +33,7 @@ import {
   TtAnswer,
   TtQuestion,
   TtRound,
+  VcnvObstacle,
   VcnvQuestion,
   VcnvRound,
   VdQuestion,
@@ -94,17 +95,13 @@ function defaultVcnvRound(): VcnvRound {
       answer: '',
     }),
   );
-  questions.push({
-    id: VCNV_ROW_COUNT + 1,
-    type: 'CNV',
-    value: DEFAULT_GAME_RULES.obstacleValueByRevealedCount[NO_ROWS_REVEALED],
-    isOpen: false,
-    isShown: false,
-    question: '',
-    answer: '',
-  });
   return {
     questions,
+    obstacle: {
+      question: '',
+      answer: '',
+      value: DEFAULT_GAME_RULES.obstacleValueByRevealedCount[NO_ROWS_REVEALED],
+    },
     playerAnswers: emptyPlayerAnswers(),
     showResults: false,
     disabledPlayers: [],
@@ -289,9 +286,12 @@ function normalizeVcnv(raw: unknown): { data: VcnvRound; migrated: boolean } {
   }
 
   if ('noOfOpenRows' in raw || 'CNVPlayers' in raw || Array.isArray(raw['questions'])) {
+    const legacyQuestions = asArray(raw['questions']);
+    const isObstacle = (q: unknown): boolean => isRecord(q) && q['type'] === 'CNV';
     return {
       data: {
-        questions: asArray(raw['questions']).map(legacyVcnvQuestion),
+        questions: legacyQuestions.filter((q) => !isObstacle(q)).map(legacyVcnvQuestion),
+        obstacle: legacyObstacle(legacyQuestions.find(isObstacle)),
         playerAnswers: padTo(
           asArray(raw['playerAnswers']).map(legacyPlayerAnswer),
           PLAYER_COUNT,
@@ -316,7 +316,7 @@ function legacyVcnvQuestion(raw: unknown, index: number): VcnvQuestion {
   const type = record['type'];
   const question: VcnvQuestion = {
     id: asNumber(record['id'], index + 1),
-    type: type === 'CNV' || type === 'HN_S' ? type : 'HN',
+    type: type === 'HN_S' ? type : 'HN',
     value: asNumber(record['value'], DEFAULT_GAME_RULES.vcnvRowPoints),
     isOpen: (record['isOpen'] ?? record['ifOpen']) === true,
     isShown: (record['isShown'] ?? record['ifShown']) === true,
@@ -328,6 +328,25 @@ function legacyVcnvQuestion(raw: unknown, index: number): VcnvQuestion {
   const audioFile = optionalString(record['audioFile'] ?? record['audioFilePath']);
   if (audioFile !== undefined) question.audioFile = audioFile;
   return question;
+}
+
+function legacyObstacle(raw: unknown): VcnvObstacle {
+  const record: Record<string, unknown> = isRecord(raw) ? raw : {};
+  const obstacle: VcnvObstacle = {
+    question: asString(record['question'], ''),
+    answer: asString(record['answer'], ''),
+    value: asNumber(
+      record['value'],
+      DEFAULT_GAME_RULES.obstacleValueByRevealedCount[NO_ROWS_REVEALED],
+    ),
+  };
+  const imageFile = optionalString(record['imageFile'] ?? record['picFileName']);
+  if (imageFile !== undefined) obstacle.imageFile = imageFile;
+  const pieces = record['imagePieceFiles'];
+  if (Array.isArray(pieces)) {
+    obstacle.imagePieceFiles = pieces.filter((p): p is string => typeof p === 'string');
+  }
+  return obstacle;
 }
 
 function legacyPlayerAnswer(raw: unknown): PlayerAnswer {

@@ -96,5 +96,12 @@ await new Promise((resolve) => {
 const media404 = await fetch(`${base}/media/tt/definitely-not-a-file.png`);
 check('missing media 404s', media404.status === 404, `status ${media404.status}`);
 
+const serverInfo = await json('/api/server');
+check('single venue server info', serverInfo.status === 200 && serverInfo.body.multiRoom === false && typeof serverInfo.body.version === 'string');
+const viewerSession = await json('/api/session');
+check('single venue viewer session', viewerSession.status === 200 && viewerSession.body.roleId === 3);
+const adminSession = await json('/api/session', { headers: { authorization: `Bearer ${admin.body.token}` } });
+check('single venue admin session', adminSession.status === 200 && adminSession.body.roleId === 1);
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);
