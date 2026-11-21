@@ -69,10 +69,26 @@ export function registerChpHandlers(ctx: HandlerContext): void {
     timer.togglePause(); // resume the clock for the remaining players
     io.emit('play-sfx', SFX_WRONG);
     io.emit('unlock-button-chp');
+    // The player who just answered wrongly stays locked out.
+    const holderSocketId = session.playerSocketIds[holder];
+    if (holderSocketId) socket.nsp.to(holderSocketId).emit('lock-button-chp');
     chp.update((d) => {
       d.playedPlayers[holder] = true;
     });
     session.chpTurnPlayerIndex = NO_PLAYER;
+    io.emit('clear-turn-chp');
+  });
+
+  // Admin "Xóa chuông": forget the buzzer turn and everyone's attempt, and
+  // reopen the buttons.
+  socket.on('clear-turn-chp', () => {
+    if (!isAdmin(ctx)) return;
+    const data = chp.update((d) => {
+      d.playedPlayers = Array(PLAYER_COUNT).fill(false);
+    });
+    session.chpTurnPlayerIndex = NO_PLAYER;
+    io.emit('update-chp-data', data);
+    io.emit('unlock-button-chp');
     io.emit('clear-turn-chp');
   });
 

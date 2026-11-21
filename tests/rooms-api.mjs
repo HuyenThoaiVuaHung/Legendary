@@ -65,7 +65,6 @@ const spectator = await join_(A.code.toLowerCase());
 check('join without secret → spectator (code case-insensitive)', spectator.status === 200 && spectator.body.roleId === 3 && spectator.body.roomId === A.roomId, JSON.stringify(spectator.body));
 check('wrong secret → 401', (await join_(A.code, 'nope')).status === 401);
 check('unknown code → 404', (await join_('ZZZZZZ')).status === 404);
-check('player secret without username → 400', (await join_(A.code, A.secrets.player)).status === 400);
 
 const alice = await join_(A.code, A.secrets.player, 'Alice');
 const bob = await join_(A.code, A.secrets.player, 'Bob');

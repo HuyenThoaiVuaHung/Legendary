@@ -57,8 +57,9 @@ export function registerVdHandlers(ctx: HandlerContext): void {
         log(`Player ${player.name} got ${value} points`);
         if (!data.hopeStarActive) {
           const owner = m.players[data.activePlayerIndex];
-          owner.score -= value;
-          log(`Player ${owner.name} lost ${value} points`);
+          const lost = Math.min(value, Math.max(owner.score, 0));
+          owner.score -= lost;
+          log(`Player ${owner.name} lost ${lost} points`);
         }
       } else {
         player.score += value;
@@ -82,8 +83,9 @@ export function registerVdHandlers(ctx: HandlerContext): void {
       const player = m.players[playerIndex];
       if (!player) return;
       const lost = value / rules.vdWrongPenaltyDivisor;
-      player.score -= lost;
-      log(`Player ${player.name} lost ${lost} points`);
+      const deducted = Math.min(lost, Math.max(player.score, 0)); // never below 0
+      player.score -= deducted;
+      log(`Player ${player.name} lost ${deducted} points`);
     });
 
     const updated = vd.update((d) => {
