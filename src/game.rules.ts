@@ -152,7 +152,5 @@ export function applyRuleOverrides(rules: GameRules, patch: Partial<GameRules>):
 export const PLAYER_COUNT = DEFAULT_GAME_RULES.playerCount;
 /** Number of hàng ngang rows; fixed by the board layout. */
 export const VCNV_ROW_COUNT = 5;
-/** Index of the central obstacle question inside VcnvRound.questions. */
-export const VCNV_OBSTACLE_INDEX = 5;
 /** Reveal-piece count, fixed by the 4-corners-plus-centre geometry. */
 export const VCNV_PIECE_COUNT = 5;

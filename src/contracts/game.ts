@@ -66,8 +66,8 @@ export interface KdRound {
 
 // ------------------------------------------------- VCNV (Vượt chướng ngại vật)
 
-/** HN: horizontal row, HN_S: special row, CNV: the central obstacle. */
-export type VcnvQuestionType = 'HN' | 'HN_S' | 'CNV';
+/** HN: horizontal row, HN_S: special row. */
+export type VcnvQuestionType = 'HN' | 'HN_S';
 
 export interface VcnvQuestion {
   id: number;
@@ -79,10 +79,17 @@ export interface VcnvQuestion {
   answer: string;
   imageFile?: string;
   audioFile?: string;
+}
+
+export interface VcnvObstacle {
+  question: string;
+  answer: string;
+  value: number;
+  imageFile?: string;
   /**
-   * CNV question only: the five reveal-piece files cut from imageFile
-   * ([corner1..corner4, center]); piece i is served to clients only once its
-   * row is open, so the uncut image never leaks early.
+   * The five reveal-piece files cut from imageFile ([corner1..corner4, center]);
+   * piece i is served to clients only once its row is open, so the uncut image
+   * never leaks early.
    */
   imagePieceFiles?: string[];
 }
@@ -100,6 +107,7 @@ export interface ObstacleBuzz {
 
 export interface VcnvRound {
   questions: VcnvQuestion[];
+  obstacle: VcnvObstacle;
   playerAnswers: PlayerAnswer[];
   showResults: boolean;
   disabledPlayers: number[];

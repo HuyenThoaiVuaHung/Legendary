@@ -11,6 +11,7 @@ import {
   ROUND_KINDS,
   TtQuestion,
   TtRound,
+  VcnvObstacle,
   VcnvQuestion,
   VcnvRound,
   VdQuestion,
@@ -20,7 +21,6 @@ import {
 import {
   DEFAULT_GAME_RULES,
   PLAYER_COUNT,
-  VCNV_OBSTACLE_INDEX,
   VCNV_ROW_COUNT,
 } from '../game.rules';
 import { MatchStore } from '../state/match.store';
@@ -240,8 +240,8 @@ export class LegionFileService {
     const vd = this.store.round('vd').get();
     const chp = this.store.round('chp').get();
 
-    const obstacle = vcnv.questions.find((q) => q.type === 'CNV');
-    const vcnvRows = vcnv.questions.filter((q) => q.type !== 'CNV');
+    const obstacle = vcnv.obstacle;
+    const vcnvRows = vcnv.questions;
 
     const editorData: EditorData = {
       uid: randomUUID(),
@@ -266,8 +266,8 @@ export class LegionFileService {
         },
         vcnv: {
           questions: vcnvRows.map(vcnvToEditor),
-          cnv: obstacle?.answer ?? '',
-          cnvMediaSrcNames: obstacle?.imageFile ? [obstacle.imageFile] : [],
+          cnv: obstacle.answer,
+          cnvMediaSrcNames: obstacle.imageFile ? [obstacle.imageFile] : [],
         },
         tt: { questions: tt.questions.map(ttToEditor) },
         vd: { questions: vd.questionPools.map((pool) => pool.map(vdToEditor)) },
@@ -440,18 +440,15 @@ function mapVcnvRound(src: EditorVcnvQuestionData | undefined): VcnvRound {
       ...(q.mediaSrcName ? { imageFile: q.mediaSrcName } : {}),
     }));
   const obstacleImage = src?.cnvMediaSrcNames?.[0];
-  const obstacle: VcnvQuestion = {
-    id: VCNV_OBSTACLE_INDEX + 1,
-    type: 'CNV',
+  const obstacle: VcnvObstacle = {
     value: DEFAULT_GAME_RULES.obstacleValueByRevealedCount[0],
-    isOpen: false,
-    isShown: false,
     question: '',
     answer: src?.cnv ?? '',
     ...(obstacleImage ? { imageFile: obstacleImage } : {}),
   };
   return {
-    questions: [...rows, obstacle],
+    questions: rows,
+    obstacle,
     playerAnswers: Array.from({ length: PLAYER_COUNT }, () => ({
       answer: '',
       correct: false,
@@ -598,6 +595,7 @@ function collectReferencedMedia(rounds: {
     add('vcnv', q.imageFile);
     add('vcnv', q.audioFile);
   }
+  add('vcnv', rounds.vcnv.obstacle.imageFile);
   for (const q of rounds.tt.questions) {
     add('tt', q.questionImage);
     add('tt', q.answerImage);

@@ -19,6 +19,7 @@ import {
   TtAnswer,
   TtQuestion,
   TtRound,
+  VcnvObstacle,
   VcnvQuestion,
   VcnvRound,
   VdQuestion,
@@ -148,21 +149,17 @@ export class ExcelImportService {
     }
 
     const obstacleRow = rows[VCNV_OBSTACLE_ROW] ?? {};
-    const obstacle: VcnvQuestion = {
-      id: VCNV_ROW_COUNT + 1,
-      type: 'CNV',
+    const obstacle: VcnvObstacle = {
       value: IMPORTED_OBSTACLE_VALUE,
-      isOpen: false,
-      isShown: false,
       question: '',
       answer: cellText(obstacleRow, COL_QUESTION),
     };
     const obstacleImage = optionalCell(obstacleRow, COL_MEDIA);
     if (obstacleImage !== undefined) obstacle.imageFile = obstacleImage;
-    questions.push(obstacle);
 
     return {
       questions,
+      obstacle,
       playerAnswers: Array.from({ length: PLAYER_COUNT }, () => ({
         answer: '',
         correct: false,

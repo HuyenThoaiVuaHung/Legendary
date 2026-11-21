@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { dirname, join } from 'path';
 import { Server } from 'socket.io';
 import { ServerConfig } from '../config';
-import { RoomSecrets } from '../contracts/api';
+import { PublicRoom, RoomSecrets } from '../contracts/api';
 import { RoundKind } from '../contracts/game';
 import { GameRules, loadGameRules, PLAYER_COUNT } from '../game.rules';
 import { LogFn, LogLevel } from '../logger';
@@ -88,6 +88,18 @@ export class RoomRegistry {
     return this.rooms.get(DEFAULT_ROOM_ID)!;
   }
 
+  /** Rooms their owners chose to list, in the shape the landing page shows. */
+  publicList(): PublicRoom[] {
+    return this.list()
+      .filter((room) => room.meta?.listed)
+      .map((room) => ({
+        code: room.meta!.code,
+        name: room.store.getMatch().matchName,
+        status: room.store.getMatch().position === 'H' ? 'waiting' : 'live',
+        guestAllowed: room.meta!.spectatorMode === 'open',
+      }));
+  }
+
   list(): Room[] {
     return [...this.rooms.values()];
   }
@@ -127,9 +139,9 @@ export class RoomRegistry {
       ownerAccountId,
       secrets,
       spectatorMode: 'open',
+      listed: false,
       links: [],
       seats: Array(PLAYER_COUNT).fill(null),
-      // A snapshot of the server rules: per-room edits never leak elsewhere.
       rules: loadGameRules(this.config.rules),
       createdAt,
       lastActiveAt: createdAt,
@@ -260,6 +272,7 @@ export class RoomRegistry {
           ...raw,
           lastActiveAt: raw.lastActiveAt ?? raw.createdAt,
           spectatorMode: raw.spectatorMode ?? 'open',
+          listed: raw.listed ?? false,
           links: raw.links ?? [],
           secrets: { ...raw.secrets, spectator: raw.secrets.spectator ?? typeable(MC_SECRET_LENGTH) },
           seats: Array.from({ length: PLAYER_COUNT }, (_, i) => raw.seats?.[i] ?? null),

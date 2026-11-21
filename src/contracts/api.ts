@@ -91,10 +91,19 @@ export interface CreateRoomLinkResponse { link: RoomLink; token: string; path: s
 export type ListRoomLinksResponse = RoomLink[];
 export interface JoinLinkRequest { token: string; username?: string }
 export type JoinLinkResponse = JoinRoomResponse;
-export interface RoomSettingsRequest { spectatorMode: SpectatorMode }
+export interface RoomSettingsRequest { spectatorMode?: SpectatorMode; listed?: boolean }
 export type RoomSettingsResponse = RoomSettingsRequest;
 export interface ServerInfo { multiRoom: boolean; version: string }
 export type SessionResponse = TokenPayload;
+
+/** One entry of GET /api/rooms/public. */
+export interface PublicRoom {
+  code: string;
+  name: string;
+  status: 'waiting' | 'live';
+  /** False when a guest (no passcode) would be refused. */
+  guestAllowed: boolean;
+}
 
 /** Current created room details; secrets are visible only to admins. */
 export interface RoomInfo {
@@ -103,6 +112,7 @@ export interface RoomInfo {
   expiresAt: number | null;
   seats: (string | null)[];
   spectatorMode: SpectatorMode;
+  listed: boolean;
   ownerAccountId: string;
   mediaBytes: number;
   mediaQuotaBytes: number;
@@ -230,6 +240,7 @@ export const API_PATHS = {
   exportLegion: '/api/match/export-legion',
   rooms: '/api/rooms',
   joinRoom: '/api/rooms/join',
+  publicRooms: '/api/rooms/public',
   joinLink: '/api/rooms/join-link',
   roomSettings: '/api/rooms/current/settings',
   roomLinks: '/api/rooms/current/links',

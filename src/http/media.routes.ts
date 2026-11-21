@@ -21,7 +21,7 @@ import {
   UPLOAD_FIELD,
 } from '../contracts/api';
 import { RoundKind, ROUND_KINDS } from '../contracts/game';
-import { VCNV_OBSTACLE_INDEX, VCNV_PIECE_COUNT } from '../game.rules';
+import { VCNV_PIECE_COUNT } from '../game.rules';
 import { Room } from '../rooms/room';
 import { DEFAULT_ROOM_ID } from '../rooms/room.registry';
 import { MediaStore } from '../services/media.store';
@@ -260,7 +260,7 @@ export function createMediaRoutes(deps: ApiDeps): Router {
       res.status(403).json(error);
       return;
     }
-    const fileName = round.questions[VCNV_OBSTACLE_INDEX]?.imagePieceFiles?.[index];
+    const fileName = round.obstacle.imagePieceFiles?.[index];
     const path = fileName ? room.media.resolveObstaclePiece(fileName) : undefined;
     if (path === undefined) {
       const error: ApiError = { error: 'Obstacle piece not found' };

@@ -28,6 +28,7 @@ import {
   CreateRoomLinkRequest,
   RoomLink,
   JoinRoomRequest,
+  RoomSettingsRequest,
   JoinRoomResponse,
   Role,
   RoomInfo,
@@ -196,7 +197,6 @@ export function createRoomRoutes(deps: ApiDeps, accounts: AccountStore, bank: Ba
     const { accountId } = accountOf(req);
     const room = rooms.get(param(req, 'roomId'));
     if (!room?.meta || room.meta.ownerAccountId !== accountId) {
-      // Same answer for "missing" and "not yours": don't confirm room ids.
       fail(res, 404, 'No such room');
       return;
     }
@@ -206,6 +206,10 @@ export function createRoomRoutes(deps: ApiDeps, accounts: AccountStore, bank: Ba
       roomId: room.id,
     };
     res.json(response);
+  });
+
+  router.get(API_PATHS.publicRooms, (_req, res) => {
+    res.json(rooms.publicList());
   });
 
   router.post(API_PATHS.joinRoom, joinLimiter, (req, res) => {
@@ -236,7 +240,10 @@ export function createRoomRoutes(deps: ApiDeps, accounts: AccountStore, bank: Ba
     } else if (secretMatches(secret, secrets.mc)) {
       payload = { roleId: Role.Mc, roomId: room.id };
     } else if (secretMatches(secret, secrets.player)) {
-      const seat = claimSeat(room, body.username, req, res);
+      const name = typeof body.username === 'string' && body.username.trim() !== ''
+        ? body.username
+        : `Thí sinh ${room.meta.seats.indexOf(null) + 1}`;
+      const seat = claimSeat(room, name, req, res);
       if (seat === null) return;
       payload = { roleId: Role.Player, index: seat, roomId: room.id };
     } else {
@@ -289,14 +296,17 @@ export function createRoomRoutes(deps: ApiDeps, accounts: AccountStore, bank: Ba
   router.patch(API_PATHS.roomSettings, adminOnly, (req, res) => {
     const room = createdRoomOf(req, res);
     if (!room) return;
-    const mode = req.body?.spectatorMode;
-    if (!['open', 'secret', 'off'].includes(mode)) {
-      fail(res, 400, 'Invalid spectator mode');
+    const { spectatorMode: mode, listed } = (req.body ?? {}) as RoomSettingsRequest;
+    if ((mode !== undefined && !['open', 'secret', 'off'].includes(mode)) ||
+      (listed !== undefined && typeof listed !== 'boolean') ||
+      (mode === undefined && listed === undefined)) {
+      fail(res, 400, 'Invalid room settings');
       return;
     }
-    room.meta.spectatorMode = mode;
+    if (mode !== undefined) room.meta.spectatorMode = mode;
+    if (listed !== undefined) room.meta.listed = listed;
     rooms.saveMeta(room);
-    res.json({ spectatorMode: mode });
+    res.json({ spectatorMode: room.meta.spectatorMode, listed: room.meta.listed });
   });
 
   router.post(API_PATHS.roomLinks, adminOnly, (req, res) => {
@@ -391,6 +401,7 @@ export function createRoomRoutes(deps: ApiDeps, accounts: AccountStore, bank: Ba
       expiresAt: room.expiresAt(config.roomIdleTtlSeconds * MS_PER_SECOND, config.roomMaxTtlSeconds * MS_PER_SECOND),
       seats: room.meta.seats,
       spectatorMode: room.meta.spectatorMode,
+      listed: room.meta.listed,
       ownerAccountId: room.meta.ownerAccountId,
       mediaBytes: room.media.usageBytes(),
       mediaQuotaBytes: config.roomMediaQuotaBytes,
@@ -420,7 +431,6 @@ export function createRoomRoutes(deps: ApiDeps, accounts: AccountStore, bank: Ba
     const roleId = ROLE_OF_SECRET[role];
     const revoked = rooms.revokeSessions(
       room.id,
-      // Host-entered admin sessions come from the account, not the secret.
       (record) => record.roleId === roleId && !(role === 'admin' && record.accountId !== undefined),
       callerSession,
     );
@@ -464,7 +474,6 @@ export function createRoomRoutes(deps: ApiDeps, accounts: AccountStore, bank: Ba
     const previousOwner = room.meta.ownerAccountId;
     room.meta.ownerAccountId = target.id;
     rooms.saveMeta(room);
-    // The previous owner's account-entered admin sessions end with ownership.
     rooms.revokeSessions(room.id, (record) => record.accountId === previousOwner);
     log(`Room ${room.id}: ownership transferred to ${target.username}`);
     res.status(204).end();

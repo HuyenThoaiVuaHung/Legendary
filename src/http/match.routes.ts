@@ -28,7 +28,7 @@ import {
   ROUND_KINDS,
   VcnvRound,
 } from '../contracts/game';
-import { GameRules, PLAYER_COUNT, VCNV_OBSTACLE_INDEX, VCNV_ROW_COUNT } from '../game.rules';
+import { GameRules, PLAYER_COUNT, VCNV_ROW_COUNT } from '../game.rules';
 import { LogLevel } from '../logger';
 import { ExcelImportService } from '../services/excel-import.service';
 import { QuotaError } from '../services/legion-file.service';
@@ -74,10 +74,8 @@ function recomputeObstacleValue(vcnv: VcnvRound, rules: GameRules): void {
   const revealedCount = vcnv.questions
     .slice(0, VCNV_ROW_COUNT)
     .filter((question) => question.isShown).length;
-  const obstacle = vcnv.questions[VCNV_OBSTACLE_INDEX];
-  if (obstacle !== undefined) {
-    obstacle.value = rules.obstacleValueByRevealedCount[revealedCount] ?? obstacle.value;
-  }
+  vcnv.obstacle.value =
+    rules.obstacleValueByRevealedCount[revealedCount] ?? vcnv.obstacle.value;
 }
 
 function isRoundKind(value: string): value is RoundKind {

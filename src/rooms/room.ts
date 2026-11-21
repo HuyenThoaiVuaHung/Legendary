@@ -23,6 +23,8 @@ export interface RoomMeta {
   ownerAccountId: string;
   secrets: RoomSecrets;
   spectatorMode: SpectatorMode;
+  /** Shown in the public room list (GET /api/rooms/public). */
+  listed: boolean;
   links: (RoomLink & { tokenHash: string })[];
   /** Username holding each player seat, in seat order; null when free. */
   seats: (string | null)[];

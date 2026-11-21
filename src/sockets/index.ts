@@ -27,6 +27,10 @@ const REGISTRARS: readonly HandlerRegistrar[] = [
   registerChpHandlers,
 ];
 
+/** Socket.io room every landing-page connection joins; never a game room id. */
+const LOBBY_ROOM = '__lobby__';
+const LOBBY_REFRESH_MS = 3000;
+
 const ROLE_NAMES: Record<Role, string> = {
   [Role.Player]: 'Player',
   [Role.Admin]: 'Admin',
@@ -51,10 +55,6 @@ export function registerSockets(deps: SocketDeps): void {
   const socketCounts = new Map<string, number>();
   const viewerCounts = new Map<string, number>();
 
-  // Handshake: resolve the token to an identity. An absent or invalid token
-  // simply yields a viewer of the default room, matching the old
-  // verify-identity semantics where login could not fail. Only a token for a
-  // room that no longer exists is rejected.
   io.use((socket, next) => {
     const bucket = ipBucket(clientIp(socket.request));
     if ((socketCounts.get(bucket) ?? 0) >= maxSocketsPerIp) {
@@ -62,6 +62,11 @@ export function registerSockets(deps: SocketDeps): void {
       return;
     }
     socket.data.ipBucket = bucket;
+    if (multiRoom && socket.handshake.auth?.lobby === true) {
+      socket.data.lobby = true;
+      next();
+      return;
+    }
     const identity: SocketIdentity =
       auth.verifyToken(socket.handshake.auth?.token) ?? { roleId: Role.Viewer };
     const roomId = identity.roomId ?? DEFAULT_ROOM_ID;
@@ -90,11 +95,25 @@ export function registerSockets(deps: SocketDeps): void {
     next();
   });
 
+  let lastLobbyList = '[]';
+  if (multiRoom) {
+    setInterval(() => {
+      const list = JSON.stringify(rooms.publicList());
+      if (list === lastLobbyList) return;
+      lastLobbyList = list;
+      io.to(LOBBY_ROOM).emit('rooms-list', rooms.publicList());
+    }, LOBBY_REFRESH_MS).unref();
+  }
+
   io.on('connection', (socket) => {
+    if (socket.data.lobby) {
+      void socket.join(LOBBY_ROOM);
+      socket.emit('rooms-list', rooms.publicList());
+      return;
+    }
     const identity = socket.data.identity as SocketIdentity;
     const room = rooms.get(identity.roomId ?? DEFAULT_ROOM_ID);
     if (!room) {
-      // The room closed between handshake and connection.
       socket.disconnect(true);
       return;
     }
@@ -150,8 +169,6 @@ function markPlayerConnected(ctx: HandlerContext, index: number): void {
 
 function markPlayerDisconnected(ctx: HandlerContext): void {
   const { io, socket, store, session, log } = ctx;
-  // Look the slot up by socket id: after a quick reconnect the slot already
-  // holds the new socket, and the stale disconnect must not clear it.
   const index = session.playerIndexOf(socket.id);
   if (index === NO_PLAYER) return;
   session.playerSocketIds[index] = '';
